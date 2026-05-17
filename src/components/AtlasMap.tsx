@@ -1,6 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
 import L from 'leaflet';
 import type { Venue } from '../store/useHauntStore';
+import { venueProfileUrl } from '../store/useHauntStore';
 
 export type AtlasMapHandle = {
   flyTo: (lat: number, lng: number, zoom?: number) => void;
@@ -75,7 +76,7 @@ function popupHtml(v: Venue): string {
       <div style="font-size:10px;letter-spacing:1.5px;font-family:'JetBrains Mono',monospace;margin-bottom:6px">${badge}</div>
       <div style="font-size:14px;font-weight:500;line-height:1.2;margin-bottom:2px">${escapeHtml(v.name)}</div>
       ${subtitle ? `<div style="font-size:11px;color:rgba(255,255,255,0.5)">${escapeHtml(subtitle)}</div>` : ''}
-      <a href="/app/atlas/venue/${encodeURIComponent(v.id)}"
+      <a href="${venueProfileUrl(v)}"
          data-haunt-venue-link="${escapeHtml(v.id)}"
          style="display:inline-block;margin-top:10px;font-size:10px;letter-spacing:1.5px;font-family:'JetBrains Mono',monospace;color:#E24B4A;text-decoration:none">
         OPEN LOCATION →
@@ -232,5 +233,15 @@ export const AtlasMap = forwardRef<AtlasMapHandle, Props>(function AtlasMap(
     []
   );
 
-  return <div ref={containerRef} className={className} />;
+  return (
+    <div
+      ref={containerRef}
+      className={className}
+      // touch-action: none prevents the browser from doing default
+      // page-scroll behavior when the user drags inside the map. Without
+      // this, mobile browsers steal pan/swipe gestures for the page
+      // instead of letting Leaflet handle them.
+      style={{ touchAction: 'none' }}
+    />
+  );
 });

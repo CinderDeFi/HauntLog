@@ -7,7 +7,9 @@ import {
   PERSONAL_EXPERIENCE_LABEL,
   type EquipmentId,
 } from '../store/useHauntStore';
-import { Star, X } from 'lucide-react';
+import { Star, X, Clock } from 'lucide-react';
+import EquipmentDataInput from './EquipmentDataInput';
+import PhotoUploadField, { type PendingPhoto } from './PhotoUploadField';
 
 type Props = {
   open: boolean;
@@ -56,19 +58,46 @@ export default function LogSheet({ open, onClose }: Props) {
   const [note, setNote] = useState('');
   const [starred, setStarred] = useState(false);
   const [timestamp, setTimestamp] = useState<string>(toLocalInputValue(new Date()));
+  /**
+   * Which quick-offset chip is currently active. When the user types into
+   * the datetime input directly, this resets to null (the chip-highlight
+   * stops following the value).
+   */
+  const [quickOffset, setQuickOffset] = useState<number | null>(0);
   const [showMoreDevices, setShowMoreDevices] = useState(false);
+  const [data, setData] = useState<Record<string, unknown> | undefined>(undefined);
+  const [photos, setPhotos] = useState<PendingPhoto[]>([]);
 
   useEffect(() => {
     if (open) {
-      // Default selection: first pre-selected device if any; otherwise personal experience.
       setEquipmentId(equipmentUsed[0] ?? PERSONAL_EXPERIENCE_ID);
       setObservation('');
       setNote('');
       setStarred(false);
       setTimestamp(toLocalInputValue(new Date()));
+      setQuickOffset(0);
       setShowMoreDevices(false);
+      setData(undefined);
+      setPhotos([]);
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * Set the timestamp to now-minus-N-minutes (0 = exactly now). Highlights
+   * the matching chip.
+   */
+  const applyQuickOffset = (minutes: number) => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - minutes);
+    setTimestamp(toLocalInputValue(d));
+    setQuickOffset(minutes);
+  };
+
+  // Clear structured data when switching devices — the shape doesn't carry over.
+  const setDevice = (id: EquipmentId | typeof PERSONAL_EXPERIENCE_ID) => {
+    setEquipmentId(id);
+    setData(undefined);
+  };
 
   if (!open) return null;
 
@@ -82,6 +111,8 @@ export default function LogSheet({ open, onClose }: Props) {
       note: note.trim() || undefined,
       starred,
       timestamp: new Date(timestamp).toISOString(),
+      data: data && Object.keys(data).length > 0 ? data : undefined,
+      pendingPhotoFiles: photos.length > 0 ? photos.map((p) => p.file) : undefined,
     });
     onClose();
   };
@@ -98,7 +129,7 @@ export default function LogSheet({ open, onClose }: Props) {
     const on = id === equipmentId;
     return (
       <button
-        onClick={() => setEquipmentId(id)}
+        onClick={() => setDevice(id)}
         className={`px-4 py-2 rounded-xl text-sm border transition-all ${
           on
             ? 'bg-haunt-red text-white border-haunt-red'
@@ -173,6 +204,13 @@ export default function LogSheet({ open, onClose }: Props) {
             </p>
           </div>
 
+          {/* EQUIPMENT-SPECIFIC STRUCTURED DATA */}
+          <EquipmentDataInput
+            equipmentId={equipmentId}
+            value={data}
+            onChange={setData}
+          />
+
           {/* OBSERVATION */}
           <div>
             <label className="block text-xs font-mono text-white/40 tracking-widest mb-2">
@@ -201,17 +239,54 @@ export default function LogSheet({ open, onClose }: Props) {
             />
           </div>
 
+          {/* PHOTOS — staged client-side; uploaded to Supabase Storage at seal time */}
+          <PhotoUploadField photos={photos} onChange={setPhotos} />
+
           {/* TIMESTAMP + STAR */}
           <div className="grid grid-cols-2 gap-3 items-end">
             <div>
               <label className="block text-xs font-mono text-white/40 tracking-widest mb-2">
                 WHEN
               </label>
+              {/* Quick offset chips — Common case is "logged a few minutes
+                  after the event happened". Tap to backdate the timestamp. */}
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {(
+                  [
+                    { mins: 0, label: 'NOW' },
+                    { mins: 1, label: '-1m' },
+                    { mins: 5, label: '-5m' },
+                    { mins: 15, label: '-15m' },
+                    { mins: 30, label: '-30m' },
+                  ] as const
+                ).map((c) => {
+                  const active = quickOffset === c.mins;
+                  return (
+                    <button
+                      key={c.mins}
+                      type="button"
+                      onClick={() => applyQuickOffset(c.mins)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-mono tracking-widest transition-colors inline-flex items-center gap-x-1 ${
+                        active
+                          ? 'bg-haunt-red text-white'
+                          : 'bg-white/5 text-white/70 hover:bg-white/10 border border-white/10'
+                      }`}
+                    >
+                      {c.mins === 0 && <Clock className="w-3 h-3" />}
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
               <input
                 type="datetime-local"
                 step="1"
                 value={timestamp}
-                onChange={(e) => setTimestamp(e.target.value)}
+                onChange={(e) => {
+                  setTimestamp(e.target.value);
+                  // Manual edit — break the chip association.
+                  setQuickOffset(null);
+                }}
                 className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 focus:border-haunt-red outline-none text-sm font-mono"
               />
             </div>

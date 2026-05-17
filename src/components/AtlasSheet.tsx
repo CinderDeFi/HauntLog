@@ -4,7 +4,7 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 // Collapsed: just the handle + a peek of the first card title (~12%).
 // Peek: cards visible, map dominant (~40%).
 // Expanded: list dominates, map slice on top (~85%).
-const SNAPS = [0.12, 0.4, 0.85] as const;
+export const SNAPS = [0.12, 0.4, 0.85] as const;
 export type SnapIndex = 0 | 1 | 2;
 
 type Props = {

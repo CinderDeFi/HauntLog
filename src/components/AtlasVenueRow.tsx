@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { MapPin, BadgeCheck, Bookmark, User as UserIcon } from 'lucide-react';
 import type { Venue } from '../store/useHauntStore';
+import { venueProfileUrl } from '../store/useHauntStore';
 
 type Props = {
   venue: Venue;
@@ -76,7 +77,7 @@ export default function AtlasVenueRow({
       </div>
 
       <Link
-        to={`/app/atlas/venue/${venue.id}`}
+        to={venueProfileUrl(venue)}
         onClick={(e) => e.stopPropagation()}
         className="block mt-3 pt-3 border-t border-white/5 text-[10px] font-mono tracking-widest text-white/40 hover:text-haunt-red text-right"
       >
