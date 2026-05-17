@@ -21,7 +21,7 @@ export default function Landing() {
           <nav className="hidden md:flex items-center gap-x-8 text-sm font-medium">
             <a href="#features" className="hover:text-haunt-red transition-colors">FEATURES</a>
             <a href="#evidence" className="hover:text-haunt-red transition-colors">EVIDENCE</a>
-            <a href="#venues" className="hover:text-haunt-red transition-colors">VENUES</a>
+            <a href="#venues" className="hover:text-haunt-red transition-colors">LOCATIONS</a>
             <a href="#pricing" className="hover:text-haunt-red transition-colors">PRICING</a>
           </nav>
 
@@ -117,7 +117,7 @@ export default function Landing() {
           </div>
           <div>
             <div className="text-5xl font-mono text-haunt-red">12hr</div>
-            <div className="text-white/60 text-sm tracking-widest mt-1">PARTNER VENUES</div>
+            <div className="text-white/60 text-sm tracking-widest mt-1">PARTNER LOCATIONS</div>
           </div>
           <div>
             <div className="text-5xl font-mono text-haunt-red">∞</div>
@@ -192,7 +192,7 @@ export default function Landing() {
                   <div className="text-white/60 text-sm">The haunted atlas</div>
                 </div>
               </div>
-              <p className="text-white/70 mb-8">Discover venues. See who's hunting tonight. Cross-reference your evidence with hunters at the same place, same minute.</p>
+              <p className="text-white/70 mb-8">Discover locations. See who's hunting tonight. Cross-reference your evidence with hunters at the same place, same minute.</p>
               <div className="text-sm font-mono">847 LOCATIONS · GROWING WEEKLY</div>
             </div>
 
@@ -213,8 +213,8 @@ export default function Landing() {
               <div className="flex items-center gap-x-4 mb-6">
                 <div className="w-12 h-12 bg-red-500/10 text-haunt-red rounded-2xl flex items-center justify-center text-2xl">05</div>
                 <div>
-                  <div className="font-mono text-xl">VENUES</div>
-                  <div className="text-white/60 text-sm">Book directly with partner venues</div>
+                  <div className="font-mono text-xl">LOCATIONS</div>
+                  <div className="text-white/60 text-sm">Book directly with partner locations</div>
                 </div>
               </div>
               <p className="text-white/70 mb-6">Real haunted locations. Verified by us, owned by them. Private overnight bookings.</p>
