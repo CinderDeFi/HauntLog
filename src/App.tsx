@@ -2,7 +2,10 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Landing from './pages/Landing';
 import AppShell from './pages/AppShell';
 import CaseView from './pages/CaseView';
+import { useSeedVenues } from './lib/useSeedVenues';
+
 function App() {
+  useSeedVenues();
   return (
     <BrowserRouter>
       <Routes>

@@ -1,6 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 @layer base {
   :root {
     --haunt-red: #E24B4A;
@@ -8,4 +9,55 @@
   body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
+}
+
+/* Leaflet popup theming — Leaflet ships white-on-white-friendly defaults
+   that swallow our content in dark mode. Override to match the HauntLog look. */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #0a0a0a !important;
+  color: #f5f5f5 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-popup-close-button {
+  color: rgba(255, 255, 255, 0.5) !important;
+  padding: 6px 8px !important;
+}
+.leaflet-popup-close-button:hover {
+  color: #fff !important;
+  background: transparent !important;
+}
+
+/* Attribution control — dark theme */
+.leaflet-control-attribution {
+  background: rgba(10, 10, 10, 0.8) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+.leaflet-control-attribution a {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Zoom buttons — dark theme */
+.leaflet-bar {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+}
+.leaflet-bar a {
+  background: #0a0a0a !important;
+  color: #f5f5f5 !important;
+  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+}
+.leaflet-bar a:hover {
+  background: #1a1a1a !important;
 }
