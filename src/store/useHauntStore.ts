@@ -1,5 +1,20 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import * as dataLayer from '../lib/dataLayer';
+import * as imageProcess from '../lib/imageProcess';
+import { supabase } from '../lib/supabase';
+
+// Helper: get the current authenticated user's id from the session.
+// Cached briefly to avoid hammering getSession() in tight loops.
+let cachedAuthId: string | null = null;
+let cachedAuthAt = 0;
+async function getProfileIdFromSession(): Promise<string | null> {
+  if (cachedAuthId && Date.now() - cachedAuthAt < 5000) return cachedAuthId;
+  const { data } = await supabase.auth.getSession();
+  cachedAuthId = data.session?.user.id ?? null;
+  cachedAuthAt = Date.now();
+  return cachedAuthId;
+}
 
 // ============================================================
 // Equipment catalog — curated list + free-form custom.
@@ -43,6 +58,15 @@ export type LogEntry = {
   note?: string;
   starred?: boolean;
   media?: MediaAttachment[];
+  data?: Record<string, unknown>;       // equipment-specific structured data
+  /**
+   * Photo files attached during the active hunt. NOT persisted to
+   * storage (Zustand persist will drop them since File isn't JSON
+   * serializable). Uploaded to Supabase Storage at seal time.
+   * Don't reference this anywhere on a sealed CaseFile — by then the
+   * photos live in log_entry_photos and are fetched separately.
+   */
+  pendingPhotoFiles?: File[];
 };
 
 export type Coords = { lat: number; lng: number };
@@ -115,9 +139,29 @@ export type Venue = {
   revisions: VenueRevision[];
 };
 
+/**
+ * The right URL to open this venue at.
+ *
+ * Verified catalog venues route to the rich `/v/:id` profile page
+ * (step 11). Everything else stays on the legacy editor-friendly
+ * `/app/atlas/venue/:id` view.
+ *
+ * Takes anything with `id` and `verified` so it works with both the
+ * local Venue store type and any narrower shape (e.g. an Atlas marker).
+ */
+export function venueProfileUrl(v: { id: string; verified?: boolean | null }): string {
+  return v.verified
+    ? `/v/${encodeURIComponent(v.id)}`
+    : `/app/atlas/venue/${encodeURIComponent(v.id)}`;
+}
+
 export type CaseFile = {
   id: string;
   ownerHandle: string;
+  /** Supabase user id of the case owner. Used by Vault scope filter. */
+  ownerId?: string;
+  /** When set, the case is attributed to this team. Used by Vault scope filter. */
+  teamId?: string;
   title: string;
   summary?: string;
   venueId?: string;
@@ -131,6 +175,7 @@ export type CaseFile = {
   gpsVerified: boolean;
   equipmentUsed: EquipmentId[];
   customEquipment?: Record<string, string>;
+  tags?: string[];
   logs: LogEntry[];
   sealed: boolean;
 };
@@ -148,6 +193,9 @@ export type ActiveHunt = {
   expectedDurationHours?: number;
   equipmentUsed: EquipmentId[];
   customEquipment?: Record<string, string>;
+  teamId?: string;       // when set, hunt is on behalf of this team
+  teamName?: string;     // snapshot for UI display in LiveHunt etc.
+  teamSlug?: string;     // snapshot — links to public team page
   logs: LogEntry[];
 };
 
@@ -200,14 +248,44 @@ type HauntState = {
     expectedDurationHours?: number;
     equipmentUsed?: EquipmentId[];
     customEquipment?: Record<string, string>;
+    teamId?: string;
+    teamName?: string;
+    teamSlug?: string;
   }) => { hunt: ActiveHunt; venue?: Venue; checkIn?: CheckIn };
 
   addLog: (entry: Omit<LogEntry, 'id'>) => void;
   updateLog: (id: string, patch: Partial<LogEntry>) => void;
   deleteLog: (id: string) => void;
 
-  sealCase: (meta: { title: string; summary?: string }) => CaseFile | null;
+  sealCase: (meta: {
+    title: string;
+    summary?: string;
+    tags?: string[];
+    teamId?: string;
+  }) => Promise<{ ok: true; sealed: CaseFile } | { ok: false; error: string }>;
   cancelHunt: () => void;
+
+  // Post-seal: case owner can change visibility at any time.
+  updateCaseVisibility: (caseId: string, visibility: Visibility) => Promise<void>;
+
+  // Soft-delete a case. Owner only. Returns error string on failure.
+  deleteCase: (caseId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+
+  // Refresh the in-memory `cases` cache from Supabase. Called on app load
+  // and after any case mutation.
+  loadMyCases: (userId: string) => Promise<void>;
+
+  // Refresh the active check-ins list from Supabase. Atlas calls this
+  // periodically.
+  loadActiveCheckIns: () => Promise<void>;
+
+  // One-shot migration: push any local-only cases (those that don't exist
+  // server-side yet) up to Supabase. Idempotent — safe to call repeatedly.
+  syncLocalCasesToServer: (userId: string) => Promise<{
+    migrated: number;
+    skipped: number;
+    failed: number;
+  }>;
 
   upsertVenue: (input: {
     name: string;
@@ -261,6 +339,13 @@ export type CatalogVenueInput = {
   rules?: string[];
   bookingUrl?: string;
   tags?: string[];
+  /**
+   * Optional verified flag from the CSV seed. When true, the venue is
+   * routed to the rich `/v/:id` profile page; when false/absent, it
+   * stays on the legacy editor page. Keep in sync with Supabase's
+   * `locations.verified` for catalog rows that have rich profiles.
+   */
+  verified?: boolean;
 };
 
 // ============================================================
@@ -323,6 +408,9 @@ export const useHauntStore = create<HauntState>()(
           expectedDurationHours: hours,
           equipmentUsed: init.equipmentUsed ?? [],
           customEquipment: init.customEquipment,
+          teamId: init.teamId,
+          teamName: init.teamName,
+          teamSlug: init.teamSlug,
           logs: [],
         };
 
@@ -361,6 +449,45 @@ export const useHauntStore = create<HauntState>()(
             ownerHandle: get().user.handle,
             active: true,
           };
+
+          // Fire-and-forget: push the check-in to Supabase so other users
+          // see it on the Atlas. Replace local id with server id when the
+          // insert returns. If it fails, the local check-in still shows in
+          // your own LiveHunt view; you just won't appear on others' Atlas.
+          //
+          // Same caveat as sealCase: user-created venues don't exist in the
+          // server `locations` table, so we omit the venue_id reference. The
+          // check-in still has the name + GPS to plot on the map.
+          const localCheckIn = checkIn;
+          const isCatalogVenue =
+            hunt.venueId &&
+            get().venues.find((v) => v.id === hunt.venueId)?.source === 'catalog';
+          const serverVenueIdForCheckIn = isCatalogVenue ? hunt.venueId : undefined;
+          (async () => {
+            try {
+              const profile = await getProfileIdFromSession();
+              if (!profile) return;
+              const res = await dataLayer.createCheckIn({
+                huntId: hunt.id,
+                venueId: serverVenueIdForCheckIn,
+                venueName: hunt.location,
+                lat: hunt.lat,
+                lng: hunt.lng,
+                visibility: init.visibility,
+                ownerId: profile,
+                expectedDurationHours: hours,
+              });
+              if (res.ok) {
+                set((s) => ({
+                  checkIns: s.checkIns.map((ci) =>
+                    ci.id === localCheckIn.id ? { ...ci, id: res.id } : ci
+                  ),
+                }));
+              }
+            } catch {
+              /* silent; local state still has the check-in */
+            }
+          })();
         }
 
         set((state) => ({
@@ -406,12 +533,85 @@ export const useHauntStore = create<HauntState>()(
         });
       },
 
-      sealCase: (meta) => {
+      sealCase: async (meta) => {
         const state = get();
-        if (!state.activeHunt) return null;
+        if (!state.activeHunt) return { ok: false, error: 'No active hunt to seal.' };
         const h = state.activeHunt;
+        const id = shortId();
+        const endedAt = new Date().toISOString();
+
+        // Only reference the venue in the DB if it's a catalog venue.
+        // User-created venues live in localStorage and don't have a
+        // matching `locations` row. The case still records the venue
+        // name + GPS as denormalized fields, so the data isn't lost.
+        const venue = state.venues.find((v) => v.id === h.venueId);
+        const serverVenueId =
+          venue && venue.source === 'catalog' ? venue.id : undefined;
+
+        // Server-side insert as one transaction.
+        const result = await dataLayer.sealCase({
+          id,
+          title: meta.title.trim(),
+          summary: meta.summary?.trim(),
+          venueId: serverVenueId,
+          locationName: h.location,
+          zone: h.zone,
+          lat: h.lat,
+          lng: h.lng,
+          startedAt: h.startedAt,
+          endedAt,
+          visibility: h.visibility,
+          gpsVerified: h.gpsVerified,
+          equipmentUsed: h.equipmentUsed,
+          customEquipment: h.customEquipment,
+          tags: meta.tags && meta.tags.length > 0 ? meta.tags : undefined,
+          teamId: meta.teamId ?? h.teamId,
+          logs: h.logs,
+        });
+
+        if (!result.ok) {
+          return { ok: false, error: result.error };
+        }
+
+        // Step 18: upload any pending photos. Done as a background
+        // task — the case is already sealed and visible without them.
+        // Per-photo failures are non-fatal.
+        const userId = await dataLayer.getCurrentUserId();
+        if (userId) {
+          for (const log of h.logs) {
+            if (!log.pendingPhotoFiles || log.pendingPhotoFiles.length === 0) continue;
+            for (const file of log.pendingPhotoFiles) {
+              // Validate + resize in the browser, then upload.
+              const v = imageProcess.validatePhotoFile(file);
+              if (!v.ok) {
+                console.warn('[sealCase photo skip] validation:', v);
+                continue;
+              }
+              try {
+                const resized = await imageProcess.resizeForUpload(file);
+                const up = await dataLayer.uploadLogPhoto({
+                  userId,
+                  caseId: id,
+                  logEntryId: log.id,
+                  blob: resized.blob,
+                  mimeType: resized.mimeType,
+                  width: resized.width,
+                  height: resized.height,
+                });
+                if (!up.ok) {
+                  console.warn('[sealCase photo upload failed]', up.error);
+                }
+              } catch (e) {
+                console.warn('[sealCase photo process error]', e);
+              }
+            }
+          }
+        }
+
+        // Build local cached version for instant UI feedback. The next
+        // loadMyCases() will replace this with the canonical server copy.
         const sealed: CaseFile = {
-          id: shortId(),
+          id,
           ownerHandle: state.user.handle,
           title: meta.title.trim(),
           summary: meta.summary?.trim() || undefined,
@@ -421,35 +621,158 @@ export const useHauntStore = create<HauntState>()(
           lat: h.lat,
           lng: h.lng,
           startedAt: h.startedAt,
-          endedAt: new Date().toISOString(),
+          endedAt,
           visibility: h.visibility,
           gpsVerified: h.gpsVerified,
           equipmentUsed: h.equipmentUsed,
           customEquipment: h.customEquipment,
+          tags: meta.tags && meta.tags.length > 0 ? meta.tags : undefined,
           logs: h.logs,
           sealed: true,
         };
 
+        // Also deactivate the check-in for this hunt on the server.
+        // Find the check-in id by huntId from local state.
+        const localCheckIn = state.checkIns.find((ci) => ci.huntId === h.id);
+        if (localCheckIn) {
+          dataLayer.deactivateCheckIn(localCheckIn.id).catch(() => {
+            /* best-effort: stale check-ins auto-expire anyway */
+          });
+        }
+
         set((s) => ({
-          cases: [sealed, ...s.cases],
+          cases: [sealed, ...s.cases.filter((c) => c.id !== id)],
           activeHunt: null,
           checkIns: s.checkIns.map((ci) =>
             ci.huntId === h.id ? { ...ci, active: false } : ci
           ),
         }));
 
-        return sealed;
+        return { ok: true, sealed };
       },
 
       cancelHunt: () => {
         const state = get();
         const h = state.activeHunt;
+        // Best-effort: deactivate the server check-in too.
+        if (h) {
+          const localCheckIn = state.checkIns.find((ci) => ci.huntId === h.id);
+          if (localCheckIn) {
+            dataLayer.deactivateCheckIn(localCheckIn.id).catch(() => {
+              /* ignore */
+            });
+          }
+        }
         set((s) => ({
           activeHunt: null,
           checkIns: h
             ? s.checkIns.map((ci) => (ci.huntId === h.id ? { ...ci, active: false } : ci))
             : s.checkIns,
         }));
+      },
+
+      updateCaseVisibility: async (caseId, visibility) => {
+        // Optimistic local update; rollback if server rejects.
+        const before = get().cases;
+        set((s) => ({
+          cases: s.cases.map((c) => (c.id === caseId ? { ...c, visibility } : c)),
+        }));
+        const result = await dataLayer.updateCaseVisibility(caseId, visibility);
+        if (!result.ok) {
+          set({ cases: before });
+          throw new Error(result.error);
+        }
+      },
+
+      deleteCase: async (caseId) => {
+        const result = await dataLayer.deleteCase(caseId);
+        if (!result.ok) return result;
+        // Remove from local cache.
+        set((s) => ({ cases: s.cases.filter((c) => c.id !== caseId) }));
+        return { ok: true };
+      },
+
+      loadMyCases: async (userId) => {
+        try {
+          const cases = await dataLayer.fetchMyVaultCases(userId);
+          set({ cases });
+        } catch (e) {
+          // Network error or RLS issue — keep the existing local cache.
+          console.warn('[loadMyCases] failed:', e);
+        }
+      },
+
+      loadActiveCheckIns: async () => {
+        try {
+          const remote = await dataLayer.fetchActiveCheckIns();
+          // Merge logic: keep the user's own un-synced local check-ins
+          // (those with id starting "ci_"), plus the remote rows. Remote
+          // wins on id collision.
+          set((s) => {
+            const remoteIds = new Set(remote.map((r) => r.id));
+            const localUnsynced = s.checkIns.filter(
+              (ci) => ci.id.startsWith('ci_') && !remoteIds.has(ci.id)
+            );
+            return { checkIns: [...remote, ...localUnsynced] };
+          });
+        } catch (e) {
+          console.warn('[loadActiveCheckIns] failed:', e);
+        }
+      },
+
+      syncLocalCasesToServer: async (userId) => {
+        const local = get().cases;
+        if (local.length === 0) return { migrated: 0, skipped: 0, failed: 0 };
+
+        // Fetch existing server ids so we don't double-insert.
+        const serverCases = await dataLayer.fetchMyCases(userId).catch(() => []);
+        const serverIds = new Set(serverCases.map((c) => c.id));
+
+        let migrated = 0;
+        let skipped = 0;
+        let failed = 0;
+
+        for (const c of local) {
+          if (serverIds.has(c.id)) {
+            skipped++;
+            continue;
+          }
+          // Same caveat as live seal: only reference catalog venues.
+          const venue = get().venues.find((v) => v.id === c.venueId);
+          const serverVenueId =
+            venue && venue.source === 'catalog' ? venue.id : undefined;
+          // Push it up.
+          const res = await dataLayer.sealCase({
+            id: c.id,
+            title: c.title,
+            summary: c.summary,
+            venueId: serverVenueId,
+            locationName: c.location,
+            zone: c.zone,
+            lat: c.lat,
+            lng: c.lng,
+            startedAt: c.startedAt,
+            endedAt: c.endedAt ?? new Date().toISOString(),
+            visibility: c.visibility,
+            gpsVerified: c.gpsVerified,
+            equipmentUsed: c.equipmentUsed,
+            customEquipment: c.customEquipment,
+            tags: c.tags,
+            logs: c.logs,
+          });
+          if (res.ok) {
+            migrated++;
+          } else {
+            console.warn('[sync] failed to migrate case', c.id, res.error);
+            failed++;
+          }
+        }
+
+        // After sync, refresh from server.
+        if (migrated > 0) {
+          await get().loadMyCases(userId);
+        }
+        return { migrated, skipped, failed };
       },
 
       // -------------- Venues --------------
@@ -545,6 +868,7 @@ export const useHauntStore = create<HauntState>()(
                 rules: row.rules,
                 bookingUrl: row.bookingUrl,
                 tags: row.tags,
+                verified: row.verified ?? false,
                 createdAt: now,
                 createdByHandle: CATALOG_OWNER_HANDLE,
                 revisions: [],
@@ -565,6 +889,7 @@ export const useHauntStore = create<HauntState>()(
                 rules: row.rules,
                 bookingUrl: row.bookingUrl,
                 tags: row.tags,
+                verified: row.verified ?? existing.verified ?? false,
               };
               byId.set(row.id, refreshed);
               updated++;
