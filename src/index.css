@@ -6,8 +6,24 @@
   :root {
     --haunt-red: #E24B4A;
   }
+  html, body {
+    /* Prevent rubber-banding when content reaches edges (the page shell
+       has its own scroll containers; the body itself doesn't scroll). */
+    overscroll-behavior: none;
+    /* Lock font size so iOS doesn't auto-grow on landscape rotate. */
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  /* Atlas / other full-screen map pages: lock document scroll so the
+     map's pan/pinch gestures don't fall through to the body. The class
+     is toggled by Atlas.tsx on mount/unmount. */
+  body.atlas-mode {
+    overflow: hidden;
+    touch-action: none;
+    position: fixed;
+    inset: 0;
   }
 }
 
