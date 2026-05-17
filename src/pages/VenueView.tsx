@@ -167,6 +167,28 @@ export default function VenueView() {
         <ArrowLeft className="w-4 h-4" /> BACK
       </button>
 
+      {/* Verified catalog venues have a rich public profile at /v/:id */}
+      {venue.verified && isCatalog && (
+        <Link
+          to={`/v/${venue.id}`}
+          className="block bg-amber-400/5 border border-amber-400/40 rounded-2xl px-4 py-3 mb-6 hover:bg-amber-400/10 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-400/15 border border-amber-400/40 flex items-center justify-center text-amber-300 shrink-0">
+              <BadgeCheck className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-mono text-amber-300 tracking-widest">
+                VERIFIED LOCATION
+              </div>
+              <div className="text-sm">
+                View this venue's rich profile, booking info, and documented zones →
+              </div>
+            </div>
+          </div>
+        </Link>
+      )}
+
       <div className="text-xs font-mono text-haunt-red tracking-widest mb-2 flex items-center gap-x-2">
         <MapPin className={`w-4 h-4 ${pinClass}`} /> LOCATION
       </div>

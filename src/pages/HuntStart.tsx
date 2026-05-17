@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useHauntStore,
@@ -12,6 +12,12 @@ import {
   MAX_EXPECTED_HOURS,
 } from '../store/useHauntStore';
 import { useGeolocation } from '../lib/useGeolocation';
+import { useAuth } from '../lib/useAuth';
+import {
+  fetchMyTeams,
+  type TeamMembershipWithTeam,
+} from '../lib/teamActions';
+import LocationPicker from '../components/LocationPicker';
 import {
   MapPin,
   Plus,
@@ -22,6 +28,9 @@ import {
   Crosshair,
   AlertTriangle,
   CheckCircle2,
+  User as UserIcon,
+  Users as UsersIcon,
+  BadgeCheck,
 } from 'lucide-react';
 
 type Step = 'visibility' | 'location' | 'equipment' | 'review';
@@ -30,6 +39,7 @@ export default function HuntStart() {
   const navigate = useNavigate();
   const startHunt = useHauntStore((s) => s.startHunt);
   const venues = useHauntStore((s) => s.venues);
+  const { user: authUser } = useAuth();
 
   const [step, setStep] = useState<Step>('visibility');
 
@@ -37,11 +47,42 @@ export default function HuntStart() {
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [hours, setHours] = useState<number>(DEFAULT_EXPECTED_HOURS);
 
+  // Team identity — "personal" by default; can switch to one of the user's teams.
+  // Null = hunt as yourself. Non-null = hunt on behalf of this team id.
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const [myTeams, setMyTeams] = useState<TeamMembershipWithTeam[]>([]);
+
+  // Load the user's teams once at mount so the picker has options ready.
+  useEffect(() => {
+    if (!authUser) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await fetchMyTeams(authUser.id);
+        if (!cancelled) setMyTeams(list);
+      } catch {
+        /* best-effort; team picker just won't show */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
+
   // Location
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
   const [newVenueName, setNewVenueName] = useState('');
   const [zone, setZone] = useState('');
   const geo = useGeolocation();
+
+  // Eagerly request GPS the moment the user lands on the location step.
+  // We want a fix in hand by the time the LocationPicker opens, so
+  // "DETECTED NEARBY" lights up without an extra click.
+  useEffect(() => {
+    if (step === 'location' && geo.status === 'idle') {
+      geo.request();
+    }
+  }, [step, geo]);
 
   // Equipment
   const [selectedEquipment, setSelectedEquipment] = useState<Set<EquipmentId>>(new Set());
@@ -120,6 +161,8 @@ export default function HuntStart() {
     const lat = selectedVenue?.lat ?? geo.coords?.lat;
     const lng = selectedVenue?.lng ?? geo.coords?.lng;
 
+    const selectedTeam = teamId ? myTeams.find((m) => m.team_id === teamId) : null;
+
     startHunt({
       venueId: selectedVenue?.id,
       location,
@@ -131,49 +174,168 @@ export default function HuntStart() {
       expectedDurationHours: hours,
       equipmentUsed: Array.from(selectedEquipment),
       customEquipment: Object.keys(customMap).length ? customMap : undefined,
+      teamId: teamId ?? undefined,
+      teamName: selectedTeam?.team.name,
+      teamSlug: selectedTeam?.team.slug,
     });
 
     navigate('/app/live');
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-5xl font-medium tracking-tighter mb-2">START A HUNT</h1>
-      <p className="text-white/60 mb-8">
+    <div className="max-w-3xl mx-auto w-full">
+      <h1 className="text-3xl md:text-5xl font-medium tracking-tighter mb-2">START A HUNT</h1>
+      <p className="text-white/60 mb-6 md:mb-8 text-sm md:text-base">
         A few quick choices. Equipment is optional — you can log pure observations too.
       </p>
 
-      {/* STEP RAIL */}
-      <div className="flex items-center gap-2 mb-8 text-xs font-mono tracking-widest">
-        {(['visibility', 'location', 'equipment', 'review'] as Step[]).map((s, i) => {
-          const on = step === s;
-          const done =
-            (s === 'visibility' && step !== 'visibility') ||
-            (s === 'location' &&
-              (step === 'equipment' || step === 'review')) ||
-            (s === 'equipment' && step === 'review');
-          return (
-            <div key={s} className="flex items-center gap-2">
-              <div
-                className={`px-2.5 py-1 rounded-md border ${
-                  on
-                    ? 'border-haunt-red text-haunt-red bg-haunt-red/10'
-                    : done
-                    ? 'border-white/20 text-white/60'
-                    : 'border-white/10 text-white/30'
-                }`}
-              >
-                {String(i + 1).padStart(2, '0')} · {s.toUpperCase()}
+      {/* STEP RAIL — compact on mobile (numbered dots + current label),
+          full pills on desktop. */}
+      <div className="mb-6 md:mb-8">
+        {/* Mobile: dots + active label */}
+        <div className="md:hidden">
+          <div className="flex items-center gap-1.5 mb-2">
+            {(['visibility', 'location', 'equipment', 'review'] as Step[]).map((s, i) => {
+              const on = step === s;
+              const done =
+                (s === 'visibility' && step !== 'visibility') ||
+                (s === 'location' && (step === 'equipment' || step === 'review')) ||
+                (s === 'equipment' && step === 'review');
+              return (
+                <div key={s} className="flex items-center gap-1.5 flex-1">
+                  <div
+                    className={`flex-1 h-1 rounded-full transition-colors ${
+                      on ? 'bg-haunt-red' : done ? 'bg-white/40' : 'bg-white/10'
+                    }`}
+                  />
+                  {i === 3 && (
+                    <span className="font-mono text-[10px] tracking-widest text-white/40 shrink-0">
+                      {String(i + 1)}/4
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="font-mono text-xs tracking-widest text-haunt-red">
+            STEP{' '}
+            {step === 'visibility'
+              ? '01 · IDENTITY'
+              : step === 'location'
+              ? '02 · LOCATION'
+              : step === 'equipment'
+              ? '03 · EQUIPMENT'
+              : '04 · REVIEW'}
+          </div>
+        </div>
+
+        {/* Desktop: full pill row */}
+        <div className="hidden md:flex items-center gap-2 text-xs font-mono tracking-widest">
+          {(['visibility', 'location', 'equipment', 'review'] as Step[]).map((s, i) => {
+            const on = step === s;
+            const done =
+              (s === 'visibility' && step !== 'visibility') ||
+              (s === 'location' && (step === 'equipment' || step === 'review')) ||
+              (s === 'equipment' && step === 'review');
+            return (
+              <div key={s} className="flex items-center gap-2">
+                <div
+                  className={`px-2.5 py-1 rounded-md border ${
+                    on
+                      ? 'border-haunt-red text-haunt-red bg-haunt-red/10'
+                      : done
+                      ? 'border-white/20 text-white/60'
+                      : 'border-white/10 text-white/30'
+                  }`}
+                >
+                  {String(i + 1).padStart(2, '0')} · {s.toUpperCase()}
+                </div>
+                {i < 3 && <div className="w-3 h-px bg-white/10" />}
               </div>
-              {i < 3 && <div className="w-3 h-px bg-white/10" />}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* STEP 1 — VISIBILITY */}
       {step === 'visibility' && (
-        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6">
+        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-4 md:p-6 mb-6">
+          {/* Team picker — only shows if user is on at least one team */}
+          {myTeams.length > 0 && (
+            <div className="mb-6 pb-6 border-b border-white/10">
+              <div className="text-xs font-mono text-haunt-red tracking-widest mb-3">
+                HUNTING AS
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  onClick={() => setTeamId(null)}
+                  className={`p-3 rounded-2xl border text-left transition-all flex items-center gap-3 ${
+                    teamId === null
+                      ? 'bg-haunt-red/10 border-haunt-red'
+                      : 'bg-black border-white/10 hover:border-white/30'
+                  }`}
+                >
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-red-500 flex items-center justify-center shrink-0">
+                    <UserIcon className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm">Just me</div>
+                    <div className="text-[10px] text-white/50">Personal case</div>
+                  </div>
+                </button>
+
+                {myTeams.map((m) => {
+                  const on = teamId === m.team_id;
+                  return (
+                    <button
+                      key={m.team_id}
+                      onClick={() => setTeamId(m.team_id)}
+                      className={`p-3 rounded-2xl border text-left transition-all flex items-center gap-3 ${
+                        on
+                          ? 'bg-haunt-red/10 border-haunt-red'
+                          : 'bg-black border-white/10 hover:border-white/30'
+                      }`}
+                    >
+                      {m.team.logo_url ? (
+                        <img
+                          src={m.team.logo_url}
+                          alt=""
+                          className="w-9 h-9 rounded-xl object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-haunt-red to-purple-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                          {m.team.name
+                            .split(' ')
+                            .map((p) => p[0])
+                            .join('')
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-sm inline-flex items-center gap-x-1">
+                          <span className="truncate">{m.team.name}</span>
+                          {m.team.verified && (
+                            <BadgeCheck className="w-3 h-3 text-haunt-red shrink-0" />
+                          )}
+                        </div>
+                        <div className="text-[10px] font-mono text-white/40 truncate">
+                          @{m.team.slug}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-white/40 mt-2 inline-flex items-center gap-x-1.5">
+                <UsersIcon className="w-3 h-3" />
+                {teamId
+                  ? 'This case will appear on the team profile.'
+                  : 'Sealed case stays on your personal profile.'}
+              </p>
+            </div>
+          )}
+
           <div className="text-xs font-mono text-haunt-red tracking-widest mb-4">VISIBILITY</div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
@@ -261,63 +423,25 @@ export default function HuntStart() {
 
       {/* STEP 2 — LOCATION */}
       {step === 'location' && (
-        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6">
+        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-4 md:p-6 mb-6">
           <div className="text-xs font-mono text-haunt-red tracking-widest mb-4 flex items-center gap-x-2">
             <MapPin className="w-4 h-4" /> LOCATION
           </div>
 
-          {/* Known venues */}
-          {venues.length > 0 && (
-            <div className="mb-5">
-              <label className="block text-xs font-mono text-white/40 tracking-widest mb-2">
-                PICK A KNOWN LOCATION
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {venues.map((v) => {
-                  const on = selectedVenueId === v.id;
-                  return (
-                    <button
-                      key={v.id}
-                      onClick={() => {
-                        setSelectedVenueId(v.id);
-                        setNewVenueName('');
-                      }}
-                      className={`px-4 py-3 rounded-xl border text-left transition-all ${
-                        on
-                          ? 'bg-haunt-red/10 border-haunt-red'
-                          : 'bg-black border-white/10 hover:border-white/30'
-                      }`}
-                    >
-                      <div className="font-medium text-sm">{v.name}</div>
-                      <div className="font-mono text-[10px] text-white/40 mt-1">
-                        {v.lat.toFixed(4)}, {v.lng.toFixed(4)}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Or new venue */}
-          <div className="mb-5">
-            <label className="block text-xs font-mono text-white/40 tracking-widest mb-2">
-              {venues.length > 0 ? 'OR ADD A NEW LOCATION' : 'NEW LOCATION NAME'}{' '}
-              <span className="text-haunt-red">*</span>
-            </label>
-            <input
-              value={newVenueName}
-              onChange={(e) => {
-                setNewVenueName(e.target.value);
-                if (e.target.value) setSelectedVenueId(null);
-              }}
-              placeholder="Bellamy House"
-              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 focus:border-haunt-red outline-none"
-            />
-            <p className="text-xs text-white/40 mt-2">
-              The location gets created from your current GPS the moment you start the hunt.
-            </p>
-          </div>
+          <LocationPicker
+            selectedVenueId={selectedVenueId}
+            newVenueName={newVenueName}
+            here={geo.coords ?? null}
+            onPickVenue={(id) => {
+              setSelectedVenueId(id);
+              setNewVenueName('');
+            }}
+            onClearVenue={() => setSelectedVenueId(null)}
+            onTypeNewVenue={(name) => {
+              setNewVenueName(name);
+              if (name) setSelectedVenueId(null);
+            }}
+          />
 
           {/* Zone */}
           <div className="mb-5">
@@ -440,7 +564,7 @@ export default function HuntStart() {
 
       {/* STEP 3 — EQUIPMENT (OPTIONAL) */}
       {step === 'equipment' && (
-        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6">
+        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-4 md:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="text-xs font-mono text-haunt-red tracking-widest">
               EQUIPMENT <span className="text-white/30">· OPTIONAL</span>
@@ -518,8 +642,32 @@ export default function HuntStart() {
 
       {/* STEP 4 — REVIEW */}
       {step === 'review' && (
-        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6 space-y-4">
+        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-4 md:p-6 mb-6 space-y-4">
           <div className="text-xs font-mono text-haunt-red tracking-widest">REVIEW</div>
+
+          {myTeams.length > 0 && (
+            <div>
+              <div className="text-[10px] font-mono text-white/40 tracking-widest mb-1">
+                HUNTING AS
+              </div>
+              <div className="text-sm inline-flex items-center gap-x-1.5">
+                {teamId === null ? (
+                  <>
+                    <UserIcon className="w-3.5 h-3.5" /> Just me{' '}
+                    <span className="text-white/40">· personal case</span>
+                  </>
+                ) : (
+                  <>
+                    <UsersIcon className="w-3.5 h-3.5 text-haunt-red" />
+                    <span>
+                      {myTeams.find((m) => m.team_id === teamId)?.team.name ?? 'Team'}
+                    </span>
+                    <span className="text-white/40">· team case</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <div className="text-[10px] font-mono text-white/40 tracking-widest mb-1">
@@ -587,7 +735,7 @@ export default function HuntStart() {
       )}
 
       {/* NAV */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         <button
           onClick={() => {
             if (step === 'visibility') navigate(-1);
@@ -595,7 +743,7 @@ export default function HuntStart() {
             else if (step === 'equipment') setStep('location');
             else setStep('equipment');
           }}
-          className="px-6 py-4 text-white/60 hover:text-white font-mono tracking-widest text-sm"
+          className="px-4 md:px-6 py-3 md:py-4 text-white/60 hover:text-white font-mono tracking-widest text-xs md:text-sm whitespace-nowrap"
         >
           {step === 'visibility' ? 'CANCEL' : '← BACK'}
         </button>
@@ -611,7 +759,7 @@ export default function HuntStart() {
               (step === 'visibility' && !canAdvanceVisibility) ||
               (step === 'location' && !canAdvanceLocation)
             }
-            className="flex-1 bg-haunt-red hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-mono tracking-widest text-lg active:scale-[0.98] transition-all"
+            className="flex-1 bg-haunt-red hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3 md:py-4 rounded-2xl font-mono tracking-widest text-sm md:text-lg active:scale-[0.98] transition-all"
           >
             CONTINUE →
           </button>
@@ -619,7 +767,7 @@ export default function HuntStart() {
           <button
             onClick={handleStart}
             disabled={!canStart}
-            className="flex-1 bg-haunt-red hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-mono tracking-widest text-lg active:scale-[0.98] transition-all"
+            className="flex-1 bg-haunt-red hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3 md:py-4 rounded-2xl font-mono tracking-widest text-sm md:text-lg active:scale-[0.98] transition-all"
           >
             START HUNT →
           </button>

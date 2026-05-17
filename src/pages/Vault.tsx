@@ -1,9 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useHauntStore, type Visibility } from '../store/useHauntStore';
-import { Globe, Lock, EyeOff, MapPin, Star } from 'lucide-react';
+import { useHauntStore, type Visibility, type CaseFile } from '../store/useHauntStore';
+import { useAuth } from '../lib/useAuth';
+import { fetchMyDeletedCases, restoreCase } from '../lib/dataLayer';
+import {
+  Globe,
+  Lock,
+  EyeOff,
+  MapPin,
+  Star,
+  Search,
+  X,
+  Users,
+  Trash2,
+  Undo2,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+} from 'lucide-react';
 
 type Filter = 'all' | Visibility;
+type Scope = 'all' | 'mine' | 'team';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -35,10 +52,94 @@ function VisibilityBadge({ v }: { v: Visibility }) {
 
 export default function Vault() {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
   const cases = useHauntStore((s) => s.cases);
   const [filter, setFilter] = useState<Filter>('all');
+  const [scope, setScope] = useState<Scope>('all');
+  const [search, setSearch] = useState('');
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
-  const filtered = cases.filter((c) => (filter === 'all' ? true : c.visibility === filter));
+  // Recently Deleted state
+  const [deletedOpen, setDeletedOpen] = useState(false);
+  const [deletedCases, setDeletedCases] = useState<CaseFile[]>([]);
+  const [deletedLoading, setDeletedLoading] = useState(false);
+  const [deletedError, setDeletedError] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const loadMyCases = useHauntStore((s) => s.loadMyCases);
+
+  // Lazy-load deleted cases the first time the user expands the section.
+  useEffect(() => {
+    if (!deletedOpen || !authUser) return;
+    if (deletedCases.length > 0) return;
+    setDeletedLoading(true);
+    setDeletedError(null);
+    fetchMyDeletedCases()
+      .then((list) => setDeletedCases(list))
+      .catch((e) =>
+        setDeletedError(e instanceof Error ? e.message : String(e))
+      )
+      .finally(() => setDeletedLoading(false));
+  }, [deletedOpen, authUser, deletedCases.length]);
+
+  const onRestore = async (caseId: string) => {
+    if (restoringId) return;
+    setRestoringId(caseId);
+    const res = await restoreCase(caseId);
+    if (!res.ok) {
+      setDeletedError(res.error);
+      setRestoringId(null);
+      return;
+    }
+    // Drop from the deleted list, then refresh the main cache so the
+    // restored case re-appears in the active grid.
+    setDeletedCases((prev) => prev.filter((c) => c.id !== caseId));
+    if (authUser) {
+      try {
+        await loadMyCases(authUser.id);
+      } catch {
+        /* best effort — RLS will reflect the change on next load */
+      }
+    }
+    setRestoringId(null);
+  };
+
+  // Counts for the scope pills — informative without an extra query.
+  const counts = useMemo(() => {
+    const me = authUser?.id;
+    let mine = 0;
+    let team = 0;
+    for (const c of cases) {
+      if (me && c.ownerId === me) mine++;
+      if (c.teamId) team++;
+    }
+    return { all: cases.length, mine, team };
+  }, [cases, authUser]);
+
+  // Build the set of all tags currently in use.
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    cases.forEach((c) => c.tags?.forEach((t) => set.add(t)));
+    return Array.from(set).sort();
+  }, [cases]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const me = authUser?.id;
+    return cases.filter((c) => {
+      // Scope filter
+      if (scope === 'mine' && (!me || c.ownerId !== me)) return false;
+      if (scope === 'team' && !c.teamId) return false;
+      // Visibility filter
+      if (filter !== 'all' && c.visibility !== filter) return false;
+      if (tagFilter && !c.tags?.includes(tagFilter)) return false;
+      if (q) {
+        const hay =
+          (c.title + ' ' + (c.summary ?? '') + ' ' + c.location + ' ' + (c.zone ?? '')).toLowerCase();
+        if (!hay.includes(q) && !c.tags?.some((t) => t.includes(q))) return false;
+      }
+      return true;
+    });
+  }, [cases, filter, scope, tagFilter, search, authUser]);
 
   return (
     <div>
@@ -58,20 +159,102 @@ export default function Vault() {
       </div>
 
       {cases.length > 0 && (
-        <div className="flex gap-2 mb-8 flex-wrap">
-          {(['all', 'public', 'anonymous', 'private'] as Filter[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-xl text-xs font-mono tracking-widest border transition-all ${
-                filter === f
-                  ? 'bg-white text-black border-white'
-                  : 'bg-transparent text-white/60 border-white/10 hover:border-white/30'
-              }`}
-            >
-              {f.toUpperCase()}
-            </button>
-          ))}
+        <div className="space-y-3 mb-8">
+          {/* Search */}
+          <div className="relative max-w-md">
+            <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by title, location, tag…"
+              className="w-full bg-zinc-900 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 text-sm focus:border-haunt-red outline-none"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-md hover:bg-white/10 flex items-center justify-center text-white/40"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Scope filter — owner vs team */}
+          <div className="flex gap-2 flex-wrap">
+            {(
+              [
+                { id: 'all' as Scope, label: 'ALL CASES', count: counts.all },
+                { id: 'mine' as Scope, label: 'MINE', count: counts.mine },
+                { id: 'team' as Scope, label: 'TEAM', count: counts.team, icon: true },
+              ]
+            ).map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setScope(s.id)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-mono tracking-widest border transition-all inline-flex items-center gap-x-1.5 ${
+                  scope === s.id
+                    ? 'bg-haunt-red text-white border-haunt-red'
+                    : 'bg-transparent text-white/60 border-white/10 hover:border-white/30'
+                }`}
+              >
+                {s.icon && <Users className="w-3 h-3" />}
+                {s.label}
+                <span
+                  className={`text-[10px] ${
+                    scope === s.id ? 'text-white/80' : 'text-white/40'
+                  }`}
+                >
+                  {s.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Visibility filter */}
+          <div className="flex gap-2 flex-wrap">
+            {(['all', 'public', 'anonymous', 'private'] as Filter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-4 py-2 rounded-xl text-xs font-mono tracking-widest border transition-all ${
+                  filter === f
+                    ? 'bg-white text-black border-white'
+                    : 'bg-transparent text-white/60 border-white/10 hover:border-white/30'
+                }`}
+              >
+                {f.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {/* Tag filter */}
+          {allTags.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap">
+              <button
+                onClick={() => setTagFilter(null)}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-mono tracking-widest border transition-all ${
+                  tagFilter === null
+                    ? 'bg-haunt-red/10 border-haunt-red text-haunt-red'
+                    : 'bg-transparent text-white/40 border-white/10 hover:border-white/30'
+                }`}
+              >
+                ALL TAGS
+              </button>
+              {allTags.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTagFilter(t === tagFilter ? null : t)}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-mono tracking-widest border transition-all ${
+                    tagFilter === t
+                      ? 'bg-haunt-red/10 border-haunt-red text-haunt-red'
+                      : 'bg-transparent text-white/40 border-white/10 hover:border-white/30'
+                  }`}
+                >
+                  {t.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -96,7 +279,7 @@ export default function Vault() {
 
       {cases.length > 0 && filtered.length === 0 && (
         <div className="bg-zinc-900 border border-white/10 rounded-3xl p-8 text-center text-white/50">
-          No {filter} cases yet.
+          No cases match your filters.
         </div>
       )}
 
@@ -115,13 +298,31 @@ export default function Vault() {
               </div>
 
               <h3 className="text-2xl font-medium leading-tight mb-2 line-clamp-2">{c.title}</h3>
-              <div className="flex items-start gap-x-1.5 text-white/60 text-sm mb-4">
+              <div className="flex items-start gap-x-1.5 text-white/60 text-sm mb-3">
                 <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span className="line-clamp-1">
                   {c.location}
                   {c.zone ? ` · ${c.zone}` : ''}
                 </span>
               </div>
+
+              {c.tags && c.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {c.tags.slice(0, 3).map((t) => (
+                    <span
+                      key={t}
+                      className="text-[9px] font-mono tracking-widest px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-white/60"
+                    >
+                      {t.toUpperCase()}
+                    </span>
+                  ))}
+                  {c.tags.length > 3 && (
+                    <span className="text-[9px] font-mono text-white/40">
+                      +{c.tags.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-x-4 font-mono text-white/60">
@@ -141,6 +342,83 @@ export default function Vault() {
           );
         })}
       </div>
+
+      {/* Recently Deleted */}
+      {authUser && (
+        <div className="mt-12 border-t border-white/10 pt-8">
+          <button
+            onClick={() => setDeletedOpen((s) => !s)}
+            className="w-full flex items-center justify-between text-left group"
+          >
+            <div className="inline-flex items-center gap-x-2">
+              <Trash2 className="w-4 h-4 text-white/40 group-hover:text-haunt-red transition-colors" />
+              <span className="text-xs font-mono text-white/40 tracking-widest group-hover:text-white transition-colors">
+                // RECENTLY DELETED
+                {deletedCases.length > 0 && (
+                  <span className="ml-2 text-white">{deletedCases.length}</span>
+                )}
+              </span>
+            </div>
+            {deletedOpen ? (
+              <ChevronUp className="w-4 h-4 text-white/40" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-white/40" />
+            )}
+          </button>
+
+          {deletedOpen && (
+            <div className="mt-4">
+              {deletedError && (
+                <div className="bg-red-950/40 border border-red-500/30 rounded-xl p-3 text-sm text-red-300 mb-3">
+                  {deletedError}
+                </div>
+              )}
+
+              {deletedLoading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto text-white/40" />
+                </div>
+              ) : deletedCases.length === 0 ? (
+                <div className="bg-zinc-950 border border-white/5 rounded-2xl p-8 text-center text-sm text-white/40">
+                  No recently deleted cases.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {deletedCases.map((c) => (
+                    <div
+                      key={c.id}
+                      className="bg-zinc-950 border border-white/5 rounded-2xl p-3 flex items-center gap-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-mono text-[10px] text-white/40 tracking-widest mb-0.5">
+                          #{c.id}
+                        </div>
+                        <div className="font-medium truncate">{c.title}</div>
+                        <div className="text-xs text-white/50 inline-flex items-center gap-x-1 mt-0.5">
+                          <MapPin className="w-3 h-3" />
+                          <span className="truncate">{c.location}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => onRestore(c.id)}
+                        disabled={restoringId === c.id}
+                        className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-mono tracking-widest bg-white/10 hover:bg-haunt-red hover:text-white text-white/80 border border-white/10 inline-flex items-center gap-x-1.5 disabled:opacity-50"
+                      >
+                        {restoringId === c.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Undo2 className="w-3 h-3" />
+                        )}
+                        RESTORE
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

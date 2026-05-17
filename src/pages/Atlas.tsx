@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useHauntStore } from '../store/useHauntStore';
+import { Link, useNavigate } from 'react-router-dom';
+import { useHauntStore, venueProfileUrl } from '../store/useHauntStore';
 import {
   AtlasMap,
   type AtlasMapHandle,
 } from '../components/AtlasMap';
-import AtlasSheet from '../components/AtlasSheet';
+import AtlasSheet, { SNAPS, type SnapIndex } from '../components/AtlasSheet';
 import AtlasFilters, { type SourceFilter } from '../components/AtlasFilters';
 import AtlasVenueRow from '../components/AtlasVenueRow';
 import {
@@ -13,6 +13,7 @@ import {
   EyeOff,
   Globe,
   MapPin,
+  Plus,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
@@ -63,6 +64,14 @@ export default function Atlas() {
     return () => clearInterval(t);
   }, []);
 
+  // Refresh active check-ins from Supabase on mount + every 60s while open.
+  const loadActiveCheckIns = useHauntStore((s) => s.loadActiveCheckIns);
+  useEffect(() => {
+    loadActiveCheckIns();
+    const t = setInterval(() => loadActiveCheckIns(), 60_000);
+    return () => clearInterval(t);
+  }, [loadActiveCheckIns]);
+
   const [search, setSearch] = useState('');
   const [source, setSource] = useState<SourceFilter>('all');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
@@ -70,17 +79,33 @@ export default function Atlas() {
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showLiveSheet, setShowLiveSheet] = useState(false);
+  // Track the sheet's snap position so we can size the map container to
+  // sit ABOVE the sheet rather than behind it. Without this, touches in
+  // the bottom half of the visible map area fall through to the sheet's
+  // scrollable region instead of Leaflet.
+  const [sheetSnap, setSheetSnap] = useState<SnapIndex>(1);
   const mapRef = useRef<AtlasMapHandle | null>(null);
 
   // Listen for "OPEN VENUE" link clicks inside Leaflet popups.
   useEffect(() => {
     const onOpenVenue = (e: Event) => {
       const id = (e as CustomEvent<string>).detail;
-      navigate(`/app/atlas/venue/${id}`);
+      const v = venues.find((x) => x.id === id);
+      navigate(v ? venueProfileUrl(v) : `/app/atlas/venue/${encodeURIComponent(id)}`);
     };
     window.addEventListener('haunt:open-venue', onOpenVenue);
     return () => window.removeEventListener('haunt:open-venue', onOpenVenue);
-  }, [navigate]);
+  }, [navigate, venues]);
+
+  // Lock document scroll while the Atlas is mounted. Prevents mobile
+  // browsers from interpreting map pans/pinches as page scrolls or
+  // pull-to-refresh gestures.
+  useEffect(() => {
+    document.body.classList.add('atlas-mode');
+    return () => {
+      document.body.classList.remove('atlas-mode');
+    };
+  }, []);
 
   const liveCheckIns = useMemo(
     () => checkIns.filter((ci) => ci.active && new Date(ci.expiresAt).getTime() > now),
@@ -229,7 +254,15 @@ export default function Atlas() {
 
         <div className="overflow-y-auto">
           <div className="p-6 border-b border-white/10 sticky top-0 bg-black/90 backdrop-blur z-10">
-            <h1 className="text-3xl font-medium tracking-tighter mb-4">THE ATLAS</h1>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h1 className="text-3xl font-medium tracking-tighter">THE ATLAS</h1>
+              <Link
+                to="/app/venues/submit"
+                className="inline-flex items-center gap-x-1.5 px-3 py-2 rounded-xl bg-haunt-red hover:bg-red-600 text-white text-xs font-mono tracking-widest shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" /> ADD VENUE
+              </Link>
+            </div>
             <AtlasFilters
               search={search}
               onSearchChange={setSearch}
@@ -258,14 +291,33 @@ export default function Atlas() {
   // MOBILE
   // ============================================================
   return (
-    <div className="relative h-full">
-      <AtlasMap
-        ref={mapRef}
-        venues={filteredVenues}
-        selectedVenueId={selectedVenueId}
-        onVenueClick={onVenueSelect}
-        className="absolute inset-0"
-      />
+    <div
+      className="relative h-full overflow-hidden"
+      style={{
+        // Prevent the page below from receiving scroll/pan when the
+        // user pans the map. Without this, mobile browsers fall through
+        // touch gestures to the underlying scrollable parent.
+        overscrollBehavior: 'none',
+        touchAction: 'none',
+      }}
+    >
+      {/* Map container — explicit height that ends at the sheet's top
+          edge. This is what fixes the "touch falls through to the sheet"
+          bug: the map is now physically smaller, so touches in the lower
+          half of the screen don't even hit the map element at all — they
+          hit the sheet directly (which is what the user expects). */}
+      <div
+        className="absolute left-0 right-0 top-0"
+        style={{ height: `calc(100% - ${SNAPS[sheetSnap] * 100}vh)` }}
+      >
+        <AtlasMap
+          ref={mapRef}
+          venues={filteredVenues}
+          selectedVenueId={selectedVenueId}
+          onVenueClick={onVenueSelect}
+          className="absolute inset-0"
+        />
+      </div>
 
       <div className="absolute top-3 left-3 right-3 flex items-center gap-2 z-[400] pointer-events-none">
         <div className="pointer-events-auto">{LiveNowChip}</div>
@@ -273,12 +325,22 @@ export default function Atlas() {
         <div className="pointer-events-auto">{FiltersButton}</div>
       </div>
 
-      <AtlasSheet initialSnap={1}>
+      <AtlasSheet initialSnap={1} onSnapChange={setSheetSnap}>
         <div className="border-b border-white/10 px-4 py-3 sticky top-0 bg-zinc-950 z-10">
-          <h2 className="text-xl font-medium tracking-tighter">THE ATLAS</h2>
-          <p className="text-white/40 text-xs mt-0.5">
-            Drag the handle. Tap a pin or row to fly the map.
-          </p>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-xl font-medium tracking-tighter">THE ATLAS</h2>
+              <p className="text-white/40 text-xs mt-0.5">
+                Drag the handle. Tap a pin or row to fly the map.
+              </p>
+            </div>
+            <Link
+              to="/app/venues/submit"
+              className="inline-flex items-center gap-x-1.5 px-3 py-2 rounded-xl bg-haunt-red hover:bg-red-600 text-white text-[10px] font-mono tracking-widest shrink-0"
+            >
+              <Plus className="w-3 h-3" /> ADD
+            </Link>
+          </div>
         </div>
         {VenueList}
       </AtlasSheet>

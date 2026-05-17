@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHauntStore, equipmentAbbr } from '../store/useHauntStore';
-import { Lock, Globe, EyeOff, MapPin, Star, ShieldCheck } from 'lucide-react';
+import { Lock, Globe, EyeOff, MapPin, Star, ShieldCheck, Loader2 } from 'lucide-react';
 
 export default function SealCase() {
   const navigate = useNavigate();
@@ -10,6 +10,10 @@ export default function SealCase() {
 
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
+  const [tagInput, setTagInput] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [sealing, setSealing] = useState(false);
+  const [sealError, setSealError] = useState<string | null>(null);
 
   if (!activeHunt) {
     return (
@@ -31,10 +35,40 @@ export default function SealCase() {
   const canSeal = title.trim().length > 0;
   const starredCount = activeHunt.logs.filter((l) => l.starred).length;
 
-  const handleSeal = () => {
-    if (!canSeal) return;
-    const sealed = sealCase({ title, summary: summary.trim() || undefined });
-    if (sealed) navigate(`/case/${sealed.id}`);
+  const normalizeTag = (raw: string) =>
+    raw
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '');
+
+  const commitTag = (raw: string) => {
+    const t = normalizeTag(raw);
+    if (!t || tags.includes(t) || tags.length >= 8) {
+      setTagInput('');
+      return;
+    }
+    setTags((prev) => [...prev, t]);
+    setTagInput('');
+  };
+
+  const removeTag = (t: string) => setTags((prev) => prev.filter((x) => x !== t));
+
+  const handleSeal = async () => {
+    if (!canSeal || sealing) return;
+    setSealError(null);
+    setSealing(true);
+    const result = await sealCase({
+      title,
+      summary: summary.trim() || undefined,
+      tags: tags.length > 0 ? tags : undefined,
+    });
+    setSealing(false);
+    if (!result.ok) {
+      setSealError(result.error);
+      return;
+    }
+    navigate(`/case/${result.sealed.id}`);
   };
 
   return (
@@ -145,7 +179,7 @@ export default function SealCase() {
       </div>
 
       {/* Summary */}
-      <div className="mb-8">
+      <div className="mb-5">
         <label className="block text-xs font-mono text-white/40 tracking-widest mb-2">
           SUMMARY (OPTIONAL)
         </label>
@@ -158,20 +192,86 @@ export default function SealCase() {
         />
       </div>
 
+      {/* Tags */}
+      <div className="mb-8">
+        <label className="block text-xs font-mono text-white/40 tracking-widest mb-2">
+          TAGS (OPTIONAL)
+        </label>
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {tags.map((t) => (
+              <span
+                key={t}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-haunt-red/10 border border-haunt-red/30 text-haunt-red rounded-md text-[10px] font-mono tracking-widest"
+              >
+                {t.toUpperCase()}
+                <button
+                  type="button"
+                  onClick={() => removeTag(t)}
+                  className="text-haunt-red/60 hover:text-haunt-red"
+                  aria-label={`Remove tag ${t}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <input
+          value={tagInput}
+          onChange={(e) => setTagInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault();
+              commitTag(tagInput);
+            } else if (e.key === 'Backspace' && tagInput === '' && tags.length > 0) {
+              setTags((prev) => prev.slice(0, -1));
+            }
+          }}
+          onBlur={() => tagInput && commitTag(tagInput)}
+          placeholder={
+            tags.length >= 8
+              ? 'Max 8 tags reached'
+              : 'apparition, sb7, k2-hit — press Enter or comma'
+          }
+          disabled={tags.length >= 8}
+          className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 focus:border-haunt-red outline-none text-sm disabled:opacity-50"
+        />
+        <p className="text-xs text-white/40 mt-1.5">
+          Lowercase, no spaces (spaces become hyphens). Up to 8.
+        </p>
+      </div>
+
+      {sealError && (
+        <div className="bg-red-950/40 border border-red-500/30 rounded-xl p-3 text-sm text-red-300 mb-3">
+          {sealError}
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/app/live')}
-          className="px-6 py-4 text-white/60 hover:text-white font-mono tracking-widest text-sm"
+          disabled={sealing}
+          className="px-6 py-4 text-white/60 hover:text-white font-mono tracking-widest text-sm disabled:opacity-50"
         >
           BACK TO HUNT
         </button>
         <button
           onClick={handleSeal}
-          disabled={!canSeal}
+          disabled={!canSeal || sealing}
           className="flex-1 bg-haunt-red hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-mono tracking-widest text-lg flex items-center justify-center gap-x-3 transition-colors active:scale-[0.98]"
         >
-          <Lock className="w-5 h-5" />
-          SEAL FOREVER
+          {sealing ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              SEALING…
+            </>
+          ) : (
+            <>
+              <Lock className="w-5 h-5" />
+              SEAL FOREVER
+            </>
+          )}
         </button>
       </div>
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   useHauntStore,
   equipmentAbbr,
@@ -15,6 +15,7 @@ import {
   EyeOff,
   ShieldCheck,
   X as XIcon,
+  Users,
 } from 'lucide-react';
 
 function formatTimeOfDay(iso: string): string {
@@ -109,6 +110,16 @@ export default function LiveHunt() {
               <div className="text-[10px] font-mono tracking-widest text-green-400 inline-flex items-center gap-x-1 px-2 py-0.5 bg-green-400/10 rounded">
                 <ShieldCheck className="w-3 h-3" /> GPS VERIFIED
               </div>
+            )}
+
+            {/* Team badge */}
+            {activeHunt.teamId && activeHunt.teamName && (
+              <Link
+                to={`/t/${activeHunt.teamSlug}`}
+                className="text-[10px] font-mono tracking-widest text-haunt-red inline-flex items-center gap-x-1 px-2 py-0.5 bg-haunt-red/10 rounded hover:bg-haunt-red/20"
+              >
+                <Users className="w-3 h-3" /> {activeHunt.teamName.toUpperCase()}
+              </Link>
             )}
           </div>
           <h1 className="text-4xl md:text-5xl font-medium tracking-tighter">
