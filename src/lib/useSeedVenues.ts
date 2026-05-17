@@ -47,6 +47,9 @@ function rowToCatalogVenue(row: SeedCsvRow): CatalogVenueInput | null {
     rules: splitPipes(row.rules),
     bookingUrl: row.booking_url || undefined,
     tags: splitPipes(row.tags),
+    // CSV column "verified" (string "true" or empty). Accepts a few truthy
+    // spellings to be forgiving.
+    verified: /^(true|1|yes|y)$/i.test((row.verified ?? '').trim()),
   };
 }
 
