@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>HauntLog app icon - 1024x1024 master</title>
+  <rect width="1024" height="1024" rx="225" fill="#0E0E10"/>
+  <g transform="translate(512, 512)">
+    <path d="M 0 -287 C -164 -287 -276 -174 -276 -31 C -276 133 0 338 0 338 C 0 338 276 133 276 -31 C 276 -174 164 -287 0 -287 Z" fill="#E24B4A"/>
+    <path d="M -92 -154 C -92 -215 -51 -246 0 -246 C 51 -246 92 -215 92 -154 L 92 10 L 71 41 L 41 10 L 20 41 L 0 10 L -20 41 L -41 10 L -71 41 L -92 10 Z" fill="#0E0E10"/>
+    <circle cx="-36" cy="-154" r="14" fill="#E24B4A"/>
+    <circle cx="36" cy="-154" r="14" fill="#E24B4A"/>
+  </g>
+</svg>
