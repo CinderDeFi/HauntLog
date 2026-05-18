@@ -283,7 +283,18 @@ type HauntState = {
     summary?: string;
     tags?: string[];
     teamId?: string;
-  }) => Promise<{ ok: true; sealed: CaseFile } | { ok: false; error: string }>;
+  }) => Promise<
+    | {
+        ok: true;
+        sealed: CaseFile;
+        /** Total photos we attempted to upload during seal. */
+        photosAttempted: number;
+        /** Subset of attempted that failed. The case is still sealed
+         * either way; this just lets the UI surface partial failure. */
+        photosFailed: number;
+      }
+    | { ok: false; error: string }
+  >;
   cancelHunt: () => void;
 
   /** Defensive guard: discard the persisted active hunt if its userId
@@ -655,16 +666,21 @@ export const useHauntStore = create<HauntState>()(
 
         // Step 18: upload any pending photos. Done as a background
         // task — the case is already sealed and visible without them.
-        // Per-photo failures are non-fatal.
+        // Per-photo failures are non-fatal but counted so we can warn
+        // the user via the SealCase page if anything went wrong.
+        let photosAttempted = 0;
+        let photosFailed = 0;
         const userId = await dataLayer.getCurrentUserId();
         if (userId) {
           for (const log of h.logs) {
             if (!log.pendingPhotoFiles || log.pendingPhotoFiles.length === 0) continue;
             for (const file of log.pendingPhotoFiles) {
+              photosAttempted++;
               // Validate + resize in the browser, then upload.
               const v = imageProcess.validatePhotoFile(file);
               if (!v.ok) {
                 console.warn('[sealCase photo skip] validation:', v);
+                photosFailed++;
                 continue;
               }
               try {
@@ -680,11 +696,20 @@ export const useHauntStore = create<HauntState>()(
                 });
                 if (!up.ok) {
                   console.warn('[sealCase photo upload failed]', up.error);
+                  photosFailed++;
                 }
               } catch (e) {
                 console.warn('[sealCase photo process error]', e);
+                photosFailed++;
               }
             }
+          }
+        } else if (h.logs.some((l) => l.pendingPhotoFiles?.length)) {
+          // We had photos but no userId — that means the auth session
+          // dropped between seal and upload. Mark them all as failed.
+          for (const l of h.logs) {
+            photosAttempted += l.pendingPhotoFiles?.length ?? 0;
+            photosFailed += l.pendingPhotoFiles?.length ?? 0;
           }
         }
 
@@ -728,7 +753,12 @@ export const useHauntStore = create<HauntState>()(
           ),
         }));
 
-        return { ok: true, sealed };
+        return {
+          ok: true,
+          sealed,
+          photosAttempted,
+          photosFailed,
+        };
       },
 
       cancelHunt: () => {
