@@ -17,6 +17,12 @@ import {
   type InviteWithInvitee,
 } from '../lib/teamActions';
 import { fetchVenueForTeam } from '../lib/dataLayer';
+import {
+  createInvestigation,
+  type ActiveInvestigationSummary,
+  listActiveInvestigationsForUser,
+} from '../lib/dataLayer';
+import { useToast } from '../components/ui/Toast';
 import AvatarUpload from '../components/AvatarUpload';
 import type { TeamRow, TeamRole, LocationRow } from '../lib/database.types';
 import {
@@ -43,6 +49,9 @@ import {
   LogOut,
   BadgeCheck,
   Settings2,
+  Radio,
+  Plus,
+  ChevronRight,
 } from 'lucide-react';
 
 type Tab = 'info' | 'members' | 'danger';
@@ -77,6 +86,17 @@ export default function TeamManage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
 
+  // Investigations — list of active ones owned by THIS team, plus
+  // inline-create state when owner/admin clicks "START INVESTIGATION".
+  const [activeInvestigations, setActiveInvestigations] = useState<
+    ActiveInvestigationSummary[]
+  >([]);
+  const [showInvCreate, setShowInvCreate] = useState(false);
+  const [invLocationName, setInvLocationName] = useState('');
+  const [invName, setInvName] = useState('');
+  const [creatingInv, setCreatingInv] = useState(false);
+  const toast = useToast();
+
   const [tab, setTab] = useState<Tab>('info');
 
   // Determine the current user's role in this team — drives permission gates.
@@ -110,6 +130,13 @@ export default function TeamManage() {
       setMembers(m);
       setInvites(i);
       setTeamVenue(v);
+      // Filter active investigations for this team only.
+      try {
+        const allActive = await listActiveInvestigationsForUser();
+        setActiveInvestigations(allActive.filter((inv) => inv.team_id === t.id));
+      } catch {
+        // Non-blocking — empty list is fine.
+      }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -148,6 +175,31 @@ export default function TeamManage() {
     return <Navigate to={`/t/${team.slug}`} replace />;
   }
 
+  const handleCreateInvestigation = async () => {
+    if (!team) return;
+    const loc = invLocationName.trim();
+    if (!loc) {
+      toast.error('Pick a location for this investigation');
+      return;
+    }
+    setCreatingInv(true);
+    const res = await createInvestigation({
+      teamId: team.id,
+      locationName: loc,
+      name: invName.trim() || undefined,
+    });
+    setCreatingInv(false);
+    if (!res.ok) {
+      toast.error('Could not start investigation', { description: res.error });
+      return;
+    }
+    toast.success('Investigation started');
+    setShowInvCreate(false);
+    setInvLocationName('');
+    setInvName('');
+    navigate(`/app/investigations/${res.id}`);
+  };
+
   return (
     <div className="max-w-3xl mx-auto">
       <button
@@ -171,6 +223,129 @@ export default function TeamManage() {
         >
           VIEW PUBLIC PROFILE
         </button>
+      </div>
+
+      {/* Step 24: Investigations — team-wide hunt umbrella.
+          Owners/admins start one; members one-tap join via the
+          app-wide banner or by typing the join code. */}
+      <div className="bg-gradient-to-br from-haunt-red/10 to-zinc-900 border border-haunt-red/30 rounded-2xl px-4 py-4 mb-6">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-haunt-red/20 border border-haunt-red/40 flex items-center justify-center text-haunt-red shrink-0">
+              <Radio className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-mono text-haunt-red tracking-widest">
+                INVESTIGATIONS
+              </div>
+              <div className="text-sm text-white/70 mt-0.5">
+                Coordinate a team night out. Members auto-join and their sealed cases group together.
+              </div>
+            </div>
+          </div>
+          {!showInvCreate && activeInvestigations.length === 0 && (
+            <button
+              onClick={() => setShowInvCreate(true)}
+              className="bg-haunt-red hover:bg-red-600 text-white px-3 py-2 rounded-xl text-xs font-mono tracking-widest inline-flex items-center gap-x-1.5 shrink-0"
+            >
+              <Plus className="w-3 h-3" /> START
+            </button>
+          )}
+        </div>
+
+        {/* Active investigations list */}
+        {activeInvestigations.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {activeInvestigations.map((inv) => (
+              <Link
+                key={inv.id}
+                to={`/app/investigations/${inv.id}`}
+                className="flex items-center gap-3 bg-black/40 border border-haunt-red/30 hover:border-haunt-red rounded-xl px-3 py-2.5"
+              >
+                <span className="relative inline-flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-haunt-red opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-haunt-red"></span>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">
+                    {inv.name ?? inv.location_name}
+                  </div>
+                  <div className="text-[10px] font-mono text-white/40 tracking-widest">
+                    {inv.member_count}{' '}
+                    {inv.member_count === 1 ? 'INVESTIGATOR' : 'INVESTIGATORS'} ·{' '}
+                    CODE {inv.join_code}
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-white/40 shrink-0" />
+              </Link>
+            ))}
+            {!showInvCreate && (
+              <button
+                onClick={() => setShowInvCreate(true)}
+                className="inline-flex items-center gap-x-1 text-xs font-mono tracking-widest text-haunt-red hover:text-white"
+              >
+                <Plus className="w-3 h-3" /> START ANOTHER
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Inline create form */}
+        {showInvCreate && (
+          <div className="mt-3 pt-3 border-t border-haunt-red/20 space-y-2">
+            <div>
+              <label className="block text-[10px] font-mono text-white/40 tracking-widest mb-1">
+                LOCATION
+              </label>
+              <input
+                value={invLocationName}
+                onChange={(e) => setInvLocationName(e.target.value)}
+                placeholder="e.g. Stanley Hotel, Estes Park, CO"
+                className="w-full bg-black border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-haunt-red outline-none"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono text-white/40 tracking-widest mb-1">
+                LABEL (OPTIONAL)
+              </label>
+              <input
+                value={invName}
+                onChange={(e) => setInvName(e.target.value)}
+                placeholder='e.g. "Halloween 2026 overnight"'
+                className="w-full bg-black border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-haunt-red outline-none"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={handleCreateInvestigation}
+                disabled={creatingInv || !invLocationName.trim()}
+                className="bg-haunt-red hover:bg-red-600 disabled:opacity-30 text-white px-4 py-2 rounded-xl text-xs font-mono tracking-widest inline-flex items-center gap-x-1.5"
+              >
+                {creatingInv ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Radio className="w-3 h-3" />
+                )}
+                START INVESTIGATION
+              </button>
+              <button
+                onClick={() => {
+                  setShowInvCreate(false);
+                  setInvLocationName('');
+                  setInvName('');
+                }}
+                className="text-white/60 hover:text-white px-3 py-2 text-xs font-mono tracking-widest"
+              >
+                CANCEL
+              </button>
+            </div>
+            <div className="text-[10px] text-white/40 pt-1">
+              Once started, your team members will see a banner and can one-tap join.
+              Auto-closes after 24h of inactivity.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Legacy: this team claimed a venue via the team-claim path

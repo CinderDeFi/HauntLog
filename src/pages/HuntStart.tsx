@@ -40,6 +40,7 @@ import {
   Users as UsersIcon,
   BadgeCheck,
   Sparkles,
+  Radio,
   Layers,
   Check,
   Loader2,
@@ -133,11 +134,29 @@ export default function HuntStart() {
   // get a feel for the flow without picking everything from scratch.
   // Runs once on mount only.
   const [searchParams] = useSearchParams();
+
+  // Step 24: investigation umbrella. If the user came from the
+  // investigation view via "START MY HUNT", prefill the location and
+  // remember the investigation id so we can auto-link on seal.
+  const investigationParam = searchParams.get('investigation');
+  const investigationLocationParam = searchParams.get('location');
+  const investigationVenueParam = searchParams.get('venue');
+
   useEffect(() => {
     if (searchParams.get('starter') === '1') {
       setNewVenueName('Old Lyon Theatre (sample)');
       setZone('Stage left');
       setSelectedEquipment(new Set<EquipmentId>(['k2', 'rempod', 'sb7', 'thermal']));
+    }
+    if (investigationParam) {
+      if (investigationLocationParam) {
+        // Prefill the new-venue field with the investigation's location.
+        setNewVenueName(investigationLocationParam);
+      }
+      if (investigationVenueParam) {
+        // If the investigation references a real venue id, select it.
+        setSelectedVenueId(investigationVenueParam);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -287,6 +306,7 @@ export default function HuntStart() {
       teamId: teamId ?? undefined,
       teamName: selectedTeam?.team.name,
       teamSlug: selectedTeam?.team.slug,
+      investigationId: investigationParam ?? undefined,
     });
 
     navigate('/app/live');
@@ -310,6 +330,27 @@ export default function HuntStart() {
             </div>
             <p className="text-xs text-amber-200/80">
               Location, zone, and gear are pre-filled so you can walk through the flow. Change anything you want — your first hunt will save as a real case in your Vault.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Investigation umbrella banner */}
+      {investigationParam && (
+        <div className="bg-haunt-red/5 border border-haunt-red/30 rounded-2xl p-4 mb-6 flex items-start gap-3">
+          <Radio className="w-5 h-5 text-haunt-red shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-haunt-red mb-1">
+              Hunting under a team investigation
+            </div>
+            <p className="text-xs text-white/70">
+              Your sealed case will auto-link to{' '}
+              {investigationLocationParam ? (
+                <strong>{investigationLocationParam}</strong>
+              ) : (
+                'this investigation'
+              )}{' '}
+              so your team can see everyone's findings together.
             </p>
           </div>
         </div>

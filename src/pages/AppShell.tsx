@@ -21,7 +21,9 @@ import VenueZoneEditor from './VenueZoneEditor';
 import MyVenues from './MyVenues';
 import VenueSubmit from './VenueSubmit';
 import Notifications from './Notifications';
+import InvestigationView from './InvestigationView';
 import NotFound from './NotFound';
+import InvestigationsBanner from '../components/InvestigationsBanner';
 import { useAuth } from '../lib/useAuth';
 import { useHauntStore } from '../store/useHauntStore';
 import { SUPABASE_CONFIGURED } from '../lib/supabase';
@@ -93,6 +95,7 @@ export default function AppShell() {
   return (
     <div className="h-[100dvh] bg-black text-white flex flex-col">
       <Navbar />
+      <InvestigationsBanner />
       <div
         className={
           fullBleed
@@ -120,6 +123,7 @@ export default function AppShell() {
           <Route path="/my-venues" element={<MyVenues />} />
           <Route path="/venues/submit" element={<VenueSubmit />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/investigations/:id" element={<InvestigationView />} />
           <Route path="/venues/:locationId/edit/zones" element={<VenueZoneEditor />} />
           <Route path="/venues/:locationId/edit" element={<VenueEditor />} />
           <Route path="/_supabase" element={<SupabaseTest />} />

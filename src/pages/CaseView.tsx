@@ -21,8 +21,10 @@ import {
   fetchAudioForCase,
   getSignedAudioUrls,
   deleteLogAudio,
+  fetchInvestigation,
   type LogEntryPhotoRow,
   type LogEntryAudioRow,
+  type InvestigationRow,
 } from '../lib/dataLayer';
 import { MAX_PHOTOS_PER_LOG, MAX_AUDIO_PER_LOG } from '../lib/imageProcess';
 import { SAMPLE_CASE, isSampleCaseId } from '../lib/sampleCase';
@@ -51,6 +53,7 @@ import {
   Mic2,
   Share2,
   Pencil,
+  Radio,
 } from 'lucide-react';
 
 function formatDateTime(iso: string) {
@@ -206,6 +209,10 @@ export default function CaseView() {
   }>({ observation: '', note: '' });
   const [editSaving, setEditSaving] = useState(false);
 
+  // Step 24: if this case is part of a team investigation umbrella,
+  // load the parent record so we can render a clickable badge.
+  const [investigation, setInvestigation] = useState<InvestigationRow | null>(null);
+
   // Is the viewer the owner of this case? Used to gate "add photos"
   // and other owner-only affordances.
   const isCaseOwner = !!authUser && caseOwnerProfileId === authUser.id;
@@ -269,6 +276,23 @@ export default function CaseView() {
       cancelled = true;
     };
   }, [id]);
+
+  // Step 24: hydrate investigation parent if this case is linked to one.
+  // Sample case is excluded (it's hardcoded, no DB record).
+  useEffect(() => {
+    if (!caseFile?.investigationId || isSample) {
+      setInvestigation(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const inv = await fetchInvestigation(caseFile.investigationId!);
+      if (!cancelled) setInvestigation(inv);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [caseFile?.investigationId, isSample]);
 
   /** Open the lightbox for a specific log entry, starting at the given photo index. */
   const openLightboxForLog = (logId: string, startIndex: number) => {
@@ -831,9 +855,23 @@ export default function CaseView() {
         )}
         {/* CASE FILE header — visually distinctive sealed badge */}
         <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-          <div className="font-mono text-[10px] md:text-xs bg-white/10 border border-white/10 px-3 md:px-4 py-1.5 rounded-2xl tracking-widest inline-flex items-center gap-x-2">
-            <ShieldCheck className="w-3 h-3 md:w-3.5 md:h-3.5 text-haunt-red" />
-            CASE FILE · SEALED
+          <div className="flex items-center gap-x-2 flex-wrap">
+            <div className="font-mono text-[10px] md:text-xs bg-white/10 border border-white/10 px-3 md:px-4 py-1.5 rounded-2xl tracking-widest inline-flex items-center gap-x-2">
+              <ShieldCheck className="w-3 h-3 md:w-3.5 md:h-3.5 text-haunt-red" />
+              CASE FILE · SEALED
+            </div>
+            {investigation && (
+              <Link
+                to={`/app/investigations/${investigation.id}`}
+                className="font-mono text-[10px] md:text-xs bg-haunt-red/10 border border-haunt-red/30 hover:border-haunt-red px-3 md:px-4 py-1.5 rounded-2xl tracking-widest inline-flex items-center gap-x-2 text-haunt-red transition-colors"
+                title="View the team investigation this case is part of"
+              >
+                <Radio className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                <span className="truncate max-w-[180px] md:max-w-[280px]">
+                  PART OF {(investigation.name ?? investigation.location_name).toUpperCase()}
+                </span>
+              </Link>
+            )}
           </div>
           <div className="text-[10px] md:text-xs text-white/40 font-mono tracking-widest">
             #{caseFile.id}
