@@ -262,27 +262,27 @@ export default function SealCase() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         <button
           onClick={() => navigate('/app/live')}
           disabled={sealing}
-          className="px-6 py-4 text-white/60 hover:text-white font-mono tracking-widest text-sm disabled:opacity-50"
+          className="px-3 md:px-6 py-3 md:py-4 text-white/60 hover:text-white font-mono tracking-widest text-xs md:text-sm disabled:opacity-50 whitespace-nowrap"
         >
-          BACK TO HUNT
+          ← BACK
         </button>
         <button
           onClick={handleSeal}
           disabled={!canSeal || sealing}
-          className="flex-1 bg-haunt-red hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-mono tracking-widest text-lg flex items-center justify-center gap-x-3 transition-colors active:scale-[0.98]"
+          className="flex-1 bg-haunt-red hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3 md:py-4 rounded-2xl font-mono tracking-widest text-sm md:text-lg flex items-center justify-center gap-x-2 md:gap-x-3 transition-colors active:scale-[0.98]"
         >
           {sealing ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
               SEALING…
             </>
           ) : (
             <>
-              <Lock className="w-5 h-5" />
+              <Lock className="w-4 h-4 md:w-5 md:h-5" />
               SEAL FOREVER
             </>
           )}

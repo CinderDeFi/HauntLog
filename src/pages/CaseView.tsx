@@ -1120,16 +1120,60 @@ export default function CaseView() {
               <div key={log.id} className="flex items-stretch gap-0">
                 {/* Colored accent bar — equipment-keyed */}
                 <div className={`w-1 shrink-0 ${chip.bar}`} aria-hidden />
-                <div className="flex items-start gap-4 px-4 md:px-6 py-3 flex-1 min-w-0">
-                  <div className="font-mono text-xs text-white/40 w-20 pt-1 shrink-0 tabular-nums">
-                    {formatTime(log.timestamp)}
+                <div className="px-3 md:px-6 py-3 flex-1 min-w-0">
+                  {/* META ROW: timestamp + chip on the left, edit/star
+                      actions on the right. Always a single horizontal
+                      strip — even on mobile this fits because there's
+                      no long observation text competing for space. */}
+                  <div className="flex items-center gap-2 md:gap-4 mb-2">
+                    <div className="font-mono text-[10px] md:text-xs text-white/40 tabular-nums shrink-0">
+                      {formatTime(log.timestamp)}
+                    </div>
+                    <div className="shrink-0">
+                      <span className={`px-2 py-0.5 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded-md tracking-widest`}>
+                        {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
+                      </span>
+                    </div>
+                    {/* Right-side actions: edit + star (owner only, not sample) */}
+                    <div className="flex items-center gap-0 shrink-0 ml-auto">
+                      {isCaseOwner && !isSample && editingLogId !== log.id && (
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(log)}
+                          aria-label="Edit this log entry"
+                          title="Edit"
+                          className="p-1 rounded-md text-white/20 hover:text-white/80 hover:bg-white/5 transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {isCaseOwner && !isSample ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStar(log.id, !!log.starred)}
+                          aria-label={log.starred ? 'Unstar this log entry' : 'Star this log entry'}
+                          title={log.starred ? 'Unstar' : 'Mark as highlight'}
+                          className={`p-1 rounded-md transition-colors ${
+                            log.starred
+                              ? 'text-yellow-400 hover:bg-yellow-400/10'
+                              : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
+                          }`}
+                        >
+                          <Star
+                            className={`w-4 h-4 ${log.starred ? 'fill-yellow-400' : ''}`}
+                          />
+                        </button>
+                      ) : (
+                        log.starred && (
+                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                        )
+                      )}
+                    </div>
                   </div>
-                  <div className="shrink-0">
-                    <span className={`px-2 py-1 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded-md tracking-widest`}>
-                      {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
+
+                  {/* CONTENT: observation + optional note + data display.
+                      Now full-width since metadata is on its own row above. */}
+                  <div className="min-w-0">
                     {editingLogId === log.id ? (
                       <div className="space-y-2">
                         <div>
@@ -1227,41 +1271,6 @@ export default function CaseView() {
                       }
                       onAddMore={() => setAddAudioLogId(log.id)}
                     />
-                  </div>
-                  {/* Right-side actions: edit + star (owner only, not sample) */}
-                  <div className="flex items-center gap-0 shrink-0 mt-1">
-                    {isCaseOwner && !isSample && editingLogId !== log.id && (
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(log)}
-                        aria-label="Edit this log entry"
-                        title="Edit"
-                        className="p-1 rounded-md text-white/20 hover:text-white/80 hover:bg-white/5 transition-colors"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    {isCaseOwner && !isSample ? (
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStar(log.id, !!log.starred)}
-                        aria-label={log.starred ? 'Unstar this log entry' : 'Star this log entry'}
-                        title={log.starred ? 'Unstar' : 'Mark as highlight'}
-                        className={`p-1 rounded-md transition-colors ${
-                          log.starred
-                            ? 'text-yellow-400 hover:bg-yellow-400/10'
-                            : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
-                        }`}
-                      >
-                        <Star
-                          className={`w-4 h-4 ${log.starred ? 'fill-yellow-400' : ''}`}
-                        />
-                      </button>
-                    ) : (
-                      log.starred && (
-                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                      )
-                    )}
                   </div>
                 </div>
               </div>
@@ -1385,7 +1394,7 @@ function PhotoGrid({
   // no ability to add — keeps the case file uncluttered.
   if (photos.length === 0 && !canAddMore) return null;
   return (
-    <div className="mt-3 grid grid-cols-3 md:grid-cols-4 gap-2 max-w-md">
+    <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
       {photos.map((p, idx) => {
         const url = signedUrls.get(p.storage_path);
         if (!url) {
