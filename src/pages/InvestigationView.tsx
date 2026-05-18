@@ -14,10 +14,12 @@ import {
   endInvestigationGroup,
   fetchMyInvestigationGroup,
   listActiveHuntsInInvestigation,
+  fetchInvestigationSummaryStats,
   type InvestigationRow,
   type InvestigationGroupRow,
   type ActiveHuntInInvestigation,
   type InvestigationCaseRow,
+  type InvestigationSummaryStats,
 } from '../lib/dataLayer';
 import { fetchMyTeams } from '../lib/teamActions';
 import { useAuth } from '../lib/useAuth';
@@ -40,6 +42,10 @@ import {
   Activity,
   EyeOff,
   User as UserIcon,
+  ScrollText,
+  Image as ImageIcon,
+  Volume2,
+  Clock as ClockIcon,
 } from 'lucide-react';
 
 type MemberRow = {
@@ -88,6 +94,9 @@ export default function InvestigationView() {
 
   // Step 28: live hunts happening right now within this investigation.
   const [liveHunts, setLiveHunts] = useState<ActiveHuntInInvestigation[]>([]);
+
+  // Step 39: aggregate stats for the closed-summary view.
+  const [summaryStats, setSummaryStats] = useState<InvestigationSummaryStats | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -155,6 +164,21 @@ export default function InvestigationView() {
     return () => {
       cancelled = true;
       clearInterval(t);
+    };
+  }, [id, inv]);
+
+  // Step 39: load aggregate stats for the closed-summary view.
+  // Fetched for both open and closed states so they're ready instantly
+  // when status flips. Cheap (one RPC).
+  useEffect(() => {
+    if (!id || !inv) return;
+    let cancelled = false;
+    (async () => {
+      const stats = await fetchInvestigationSummaryStats(id);
+      if (!cancelled) setSummaryStats(stats);
+    })();
+    return () => {
+      cancelled = true;
     };
   }, [id, inv]);
 
@@ -476,14 +500,105 @@ export default function InvestigationView() {
         </div>
       </div>
 
-      {/* Step 25: Groups — sub-parties within the investigation */}
-      {iAmMember && (
+      {/* Step 39: Closed-investigation summary header.
+          Renders only when status === 'closed' and we have stats. */}
+      {inv.status === 'closed' && summaryStats && (() => {
+        const seconds = summaryStats.duration_seconds;
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const durLabel =
+          hours >= 1
+            ? `${hours}H ${minutes}M`
+            : seconds >= 60
+            ? `${minutes}M`
+            : '< 1M';
+
+        type StatCell = {
+          label: string;
+          value: string;
+          icon: React.ReactNode;
+        };
+        const cells: StatCell[] = [
+          {
+            label: 'DURATION',
+            value: durLabel,
+            icon: <ClockIcon className="w-3.5 h-3.5 text-haunt-red" />,
+          },
+          {
+            label: 'INVESTIGATORS',
+            value: String(members.length),
+            icon: <Users className="w-3.5 h-3.5 text-haunt-red" />,
+          },
+          {
+            label: 'CASES SEALED',
+            value: String(summaryStats.total_cases),
+            icon: <FileText className="w-3.5 h-3.5 text-haunt-red" />,
+          },
+          {
+            label: 'LOG ENTRIES',
+            value: String(summaryStats.total_log_entries),
+            icon: <ScrollText className="w-3.5 h-3.5 text-haunt-red" />,
+          },
+          {
+            label: 'PHOTOS',
+            value: String(summaryStats.total_photos),
+            icon: <ImageIcon className="w-3.5 h-3.5 text-haunt-red" />,
+          },
+          {
+            label: 'AUDIO',
+            value: String(summaryStats.total_audio),
+            icon: <Volume2 className="w-3.5 h-3.5 text-haunt-red" />,
+          },
+        ];
+
+        return (
+          <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6">
+            <div className="flex items-center gap-x-2 mb-4">
+              <div className="text-xs font-mono text-white/40 tracking-widest">
+                THE NIGHT AT A GLANCE
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {cells.map((cell) => (
+                <div
+                  key={cell.label}
+                  className="bg-black border border-white/10 rounded-2xl p-3"
+                >
+                  <div className="flex items-center gap-x-1.5 mb-1">
+                    {cell.icon}
+                    <div className="text-[10px] font-mono text-white/40 tracking-widest">
+                      {cell.label}
+                    </div>
+                  </div>
+                  <div className="text-2xl font-medium tracking-tight">
+                    {cell.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {summaryStats.total_cases === 0 && (
+              <div className="text-xs text-white/40 italic mt-3 text-center">
+                No cases were sealed during this investigation.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Step 25: Groups — sub-parties within the investigation.
+          - When OPEN + you're a member: full panel with create + join controls.
+          - When CLOSED: read-only listing, but only if there are any groups
+            to show (no point showing an empty card on a closed investigation). */}
+      {((iAmMember && inv.status === 'open') ||
+        (inv.status === 'closed' && groups.length > 0)) && (
         <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6">
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
             <div className="flex items-center gap-x-2">
               <UsersRound className="w-4 h-4 text-white/40" />
               <div className="text-xs font-mono text-white/40 tracking-widest">
-                GROUPS · {groups.filter((g) => !g.ended_at).length} ACTIVE
+                {inv.status === 'closed'
+                  ? `GROUPS · ${groups.length}`
+                  : `GROUPS · ${groups.filter((g) => !g.ended_at).length} ACTIVE`}
               </div>
             </div>
             {inv.status === 'open' && !showGroupCreate && (
