@@ -17,6 +17,14 @@ import {
   fetchMyTeams,
   type TeamMembershipWithTeam,
 } from '../lib/teamActions';
+import {
+  fetchLoadouts,
+  createLoadout,
+  deleteLoadout,
+  MAX_LOADOUTS_PER_USER,
+  type EquipmentLoadoutRow,
+} from '../lib/dataLayer';
+import { useToast } from '../components/ui/Toast';
 import LocationPicker from '../components/LocationPicker';
 import {
   MapPin,
@@ -32,6 +40,9 @@ import {
   Users as UsersIcon,
   BadgeCheck,
   Sparkles,
+  Layers,
+  Check,
+  Loader2,
 } from 'lucide-react';
 
 type Step = 'visibility' | 'location' | 'equipment' | 'review';
@@ -89,6 +100,33 @@ export default function HuntStart() {
   const [selectedEquipment, setSelectedEquipment] = useState<Set<EquipmentId>>(new Set());
   const [customLabel, setCustomLabel] = useState('');
   const [customMap, setCustomMap] = useState<Record<string, string>>({});
+
+  // Loadouts: saved presets the user can apply with one tap.
+  const [loadouts, setLoadouts] = useState<EquipmentLoadoutRow[]>([]);
+  const [loadoutsLoading, setLoadoutsLoading] = useState(true);
+  const [savingLoadout, setSavingLoadout] = useState(false);
+  const [showSaveLoadout, setShowSaveLoadout] = useState(false);
+  const [newLoadoutName, setNewLoadoutName] = useState('');
+  const toast = useToast();
+
+  // Fetch loadouts once on mount.
+  useEffect(() => {
+    if (!authUser) {
+      setLoadoutsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const list = await fetchLoadouts(authUser.id);
+      if (!cancelled) {
+        setLoadouts(list);
+        setLoadoutsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
 
   // Starter setup: when arriving via ?starter=1 (from the LiveHunt empty
   // state), prefill some reasonable defaults so a first-time user can
@@ -157,6 +195,63 @@ export default function HuntStart() {
     const next = new Set(selectedEquipment);
     next.delete(id);
     setSelectedEquipment(next);
+  };
+
+  // ------- Loadout handlers -------
+  const applyLoadout = (lo: EquipmentLoadoutRow) => {
+    const next = new Set<EquipmentId>(lo.equipment_ids);
+    setSelectedEquipment(next);
+    if (lo.custom_equipment && Object.keys(lo.custom_equipment).length > 0) {
+      // Merge custom labels in for any custom ids included.
+      setCustomMap((prev) => ({ ...prev, ...lo.custom_equipment }));
+    }
+    toast.success(`Loaded "${lo.name}"`);
+  };
+
+  const handleSaveLoadout = async () => {
+    if (!authUser) return;
+    const name = newLoadoutName.trim();
+    if (!name) {
+      toast.error('Give the loadout a name');
+      return;
+    }
+    if (selectedEquipment.size === 0) {
+      toast.error('Pick at least one piece of equipment first');
+      return;
+    }
+    if (loadouts.length >= MAX_LOADOUTS_PER_USER) {
+      toast.error(`You can save up to ${MAX_LOADOUTS_PER_USER} loadouts`, {
+        description: 'Delete an old one to make room.',
+      });
+      return;
+    }
+    setSavingLoadout(true);
+    const res = await createLoadout({
+      userId: authUser.id,
+      name,
+      equipmentIds: Array.from(selectedEquipment).map(String),
+      customEquipment: Object.keys(customMap).length > 0 ? customMap : undefined,
+    });
+    setSavingLoadout(false);
+    if (!res.ok) {
+      toast.error('Could not save loadout', { description: res.error });
+      return;
+    }
+    setLoadouts((prev) => [res.row, ...prev]);
+    setNewLoadoutName('');
+    setShowSaveLoadout(false);
+    toast.success(`Saved "${res.row.name}"`);
+  };
+
+  const handleDeleteLoadout = async (lo: EquipmentLoadoutRow) => {
+    if (!confirm(`Delete the "${lo.name}" loadout?`)) return;
+    const res = await deleteLoadout(lo.id);
+    if (!res.ok) {
+      toast.error('Could not delete', { description: res.error });
+      return;
+    }
+    setLoadouts((prev) => prev.filter((l) => l.id !== lo.id));
+    toast.success('Loadout deleted');
   };
 
   // Validation per step
@@ -604,6 +699,43 @@ export default function HuntStart() {
               {selectedEquipment.size} SELECTED
             </div>
           </div>
+
+          {/* Saved loadouts row */}
+          {!loadoutsLoading && loadouts.length > 0 && (
+            <div className="mb-4">
+              <div className="text-[10px] font-mono text-white/40 tracking-widest mb-2">
+                LOAD A PRESET
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {loadouts.map((lo) => (
+                  <div
+                    key={lo.id}
+                    className="group inline-flex items-center bg-black border border-white/10 hover:border-white/30 rounded-lg overflow-hidden transition-colors"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applyLoadout(lo)}
+                      className="px-3 py-1.5 text-xs font-mono tracking-widest text-white/70 hover:text-white inline-flex items-center gap-x-1.5"
+                      title={`${lo.equipment_ids.length} item${lo.equipment_ids.length === 1 ? '' : 's'}`}
+                    >
+                      <Layers className="w-3 h-3 text-haunt-red" />
+                      {lo.name.toUpperCase()}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteLoadout(lo)}
+                      aria-label={`Delete ${lo.name}`}
+                      title="Delete loadout"
+                      className="px-2 py-1.5 text-white/30 hover:text-red-400 border-l border-white/10"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <p className="text-sm text-white/50 mb-4">
             Pick the gear you brought tonight. You can also log pure observations during the hunt
             with no device attached.
@@ -668,6 +800,60 @@ export default function HuntStart() {
               <Plus className="w-4 h-4" /> ADD
             </button>
           </div>
+
+          {/* Save-as-loadout */}
+          {selectedEquipment.size > 0 && authUser && (
+            <div className="mt-5 pt-4 border-t border-white/5">
+              {showSaveLoadout ? (
+                <div className="flex gap-2">
+                  <input
+                    value={newLoadoutName}
+                    onChange={(e) => setNewLoadoutName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveLoadout()}
+                    placeholder={'Name this loadout (e.g. "Stanley Hotel kit")'}
+                    maxLength={60}
+                    className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:border-haunt-red outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveLoadout}
+                    disabled={savingLoadout || !newLoadoutName.trim()}
+                    className="px-4 py-2.5 bg-haunt-red hover:bg-red-600 disabled:opacity-30 text-white rounded-xl text-xs font-mono tracking-widest inline-flex items-center gap-x-1.5"
+                  >
+                    {savingLoadout ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    SAVE
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowSaveLoadout(false);
+                      setNewLoadoutName('');
+                    }}
+                    className="px-3 py-2.5 text-white/50 hover:text-white text-xs font-mono tracking-widest"
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowSaveLoadout(true)}
+                  disabled={loadouts.length >= MAX_LOADOUTS_PER_USER}
+                  className="inline-flex items-center gap-x-1.5 text-xs font-mono tracking-widest text-white/50 hover:text-white disabled:opacity-30"
+                  title={
+                    loadouts.length >= MAX_LOADOUTS_PER_USER
+                      ? `You have ${MAX_LOADOUTS_PER_USER} loadouts — delete one to add another`
+                      : 'Save this kit as a preset'
+                  }
+                >
+                  <Plus className="w-3 h-3" />
+                  SAVE AS LOADOUT
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
