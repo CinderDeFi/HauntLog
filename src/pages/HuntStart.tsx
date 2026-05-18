@@ -1439,6 +1439,16 @@ export default function HuntStart() {
             : ''}
         </p>
       )}
+
+      {step === 'group' && !canAdvanceGroup && (
+        <p className="text-xs text-white/40 mt-3">
+          {groupMode === 'create'
+            ? 'Give the group a name (e.g. "Basement") to continue.'
+            : groupMode === 'join'
+            ? 'Pick a group to join, or switch to NEW GROUP / GOING SOLO.'
+            : ''}
+        </p>
+      )}
     </div>
   );
 }
