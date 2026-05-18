@@ -48,6 +48,7 @@ export function caseRowToCaseFile(
     tags: row.tags ?? undefined,
     logs: logs.map(logRowToLogEntry),
     sealed: row.sealed,
+    investigationId: (row as any).investigation_id ?? undefined,
   };
 }
 
@@ -2463,6 +2464,214 @@ export async function renameLoadout(
     .from('equipment_loadouts')
     .update({ name: trimmed })
     .eq('id', loadoutId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// ============================================================
+// INVESTIGATIONS (step 24)
+// ============================================================
+// Team-scoped umbrella that groups multiple individual hunts at the
+// same venue on the same night. Owner/admin starts. Members join
+// via the auto-list or via a 6-char code. Each member still seals
+// their own case; their case auto-links to the parent investigation.
+
+export type InvestigationRow = {
+  id: string;
+  team_id: string;
+  host_id: string;
+  name: string | null;
+  venue_id: string | null;
+  location_name: string;
+  join_code: string;
+  status: 'open' | 'closed';
+  started_at: string;
+  closed_at: string | null;
+  last_activity_at: string;
+};
+
+export type InvestigationMemberRow = {
+  investigation_id: string;
+  user_id: string;
+  joined_at: string;
+  left_at: string | null;
+  group_id: string | null;
+};
+
+/** Output of list_active_investigations_for_user RPC. */
+export type ActiveInvestigationSummary = {
+  id: string;
+  team_id: string;
+  team_name: string;
+  team_slug: string;
+  host_id: string;
+  host_handle: string;
+  name: string | null;
+  location_name: string;
+  venue_id: string | null;
+  join_code: string;
+  started_at: string;
+  last_activity_at: string;
+  member_count: number;
+  i_am_member: boolean;
+};
+
+/** Start a new investigation. Caller must be owner/admin of the team.
+ * Returns the new investigation id, or an error. */
+export async function createInvestigation(input: {
+  teamId: string;
+  locationName: string;
+  venueId?: string | null;
+  name?: string | null;
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const { data, error } = await supabase.rpc('create_investigation', {
+    p_team_id: input.teamId,
+    p_location_name: input.locationName,
+    p_venue_id: input.venueId ?? null,
+    p_name: input.name ?? null,
+  });
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'No id returned' };
+  return { ok: true, id: data as string };
+}
+
+/** Join an investigation by its 6-char code. Returns the joined id. */
+export async function joinInvestigationByCode(
+  code: string
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const { data, error } = await supabase.rpc('join_investigation_by_code', {
+    p_code: code,
+  });
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'No id returned' };
+  return { ok: true, id: data as string };
+}
+
+/** Join an investigation directly by id (used from the auto-list). */
+export async function joinInvestigationById(
+  investigationId: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Upsert so re-joining clears any prior left_at.
+  const { error } = await supabase
+    .from('investigation_members')
+    .upsert(
+      {
+        investigation_id: investigationId,
+        user_id: userId,
+        left_at: null,
+      },
+      { onConflict: 'investigation_id,user_id' }
+    );
+  if (error) return { ok: false, error: error.message };
+  // Bump heartbeat manually since we didn't go through the RPC.
+  await supabase
+    .from('investigations')
+    .update({ last_activity_at: new Date().toISOString() })
+    .eq('id', investigationId);
+  return { ok: true };
+}
+
+/** Leave an investigation (mark left_at). */
+export async function leaveInvestigation(
+  investigationId: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('investigation_members')
+    .update({ left_at: new Date().toISOString() })
+    .eq('investigation_id', investigationId)
+    .eq('user_id', userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Close an investigation. Host or team owner only. */
+export async function closeInvestigation(
+  investigationId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc('close_investigation', {
+    p_investigation_id: investigationId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Active investigations across all teams the user belongs to.
+ * Backed by the security-definer RPC for clean joins + counts. */
+export async function listActiveInvestigationsForUser(): Promise<
+  ActiveInvestigationSummary[]
+> {
+  const { data, error } = await supabase.rpc('list_active_investigations_for_user');
+  if (error) {
+    console.warn('[listActiveInvestigationsForUser]', error.message);
+    return [];
+  }
+  return (data ?? []) as ActiveInvestigationSummary[];
+}
+
+/** Fetch a single investigation by id. RLS gates team membership. */
+export async function fetchInvestigation(
+  investigationId: string
+): Promise<InvestigationRow | null> {
+  const { data, error } = await supabase
+    .from('investigations')
+    .select('*')
+    .eq('id', investigationId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as InvestigationRow;
+}
+
+/** Members of an investigation, with profile info for display. */
+export async function fetchInvestigationMembers(
+  investigationId: string
+): Promise<
+  Array<{
+    user_id: string;
+    joined_at: string;
+    left_at: string | null;
+    handle: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  }>
+> {
+  const { data, error } = await supabase
+    .from('investigation_members')
+    .select('user_id, joined_at, left_at, profiles!inner(handle, display_name, avatar_url)')
+    .eq('investigation_id', investigationId)
+    .order('joined_at', { ascending: true });
+  if (error || !data) return [];
+  return (data as any[]).map((r) => ({
+    user_id: r.user_id,
+    joined_at: r.joined_at,
+    left_at: r.left_at,
+    handle: r.profiles?.handle ?? null,
+    display_name: r.profiles?.display_name ?? null,
+    avatar_url: r.profiles?.avatar_url ?? null,
+  }));
+}
+
+/** All cases linked to this investigation. */
+export async function fetchInvestigationCases(
+  investigationId: string
+): Promise<any[]> {
+  const { data, error } = await supabase.rpc('list_investigation_cases', {
+    p_investigation_id: investigationId,
+  });
+  if (error || !data) return [];
+  return data;
+}
+
+/** Link an existing case to an investigation (or unlink with null). */
+export async function setCaseInvestigation(
+  caseId: string,
+  investigationId: string | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('cases')
+    .update({ investigation_id: investigationId })
+    .eq('id', caseId);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

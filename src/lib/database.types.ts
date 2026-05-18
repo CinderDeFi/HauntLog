@@ -195,6 +195,9 @@ export type CaseRow = {
   custom_equipment: Record<string, string> | null;
   tags: string[] | null;
   sealed: boolean;
+  investigation_id: string | null;
+  group_id: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -472,6 +475,63 @@ export type Database = {
         };
         Relationships: [];
       };
+      investigations: {
+        Row: {
+          id: string;
+          team_id: string;
+          host_id: string;
+          name: string | null;
+          venue_id: string | null;
+          location_name: string;
+          join_code: string;
+          status: 'open' | 'closed';
+          started_at: string;
+          closed_at: string | null;
+          last_activity_at: string;
+        };
+        Insert: {
+          team_id: string;
+          host_id: string;
+          location_name: string;
+          join_code: string;
+          name?: string | null;
+          venue_id?: string | null;
+          status?: 'open' | 'closed';
+          id?: string;
+          started_at?: string;
+          closed_at?: string | null;
+          last_activity_at?: string;
+        };
+        Update: {
+          name?: string | null;
+          venue_id?: string | null;
+          status?: 'open' | 'closed';
+          closed_at?: string | null;
+          last_activity_at?: string;
+        };
+        Relationships: [];
+      };
+      investigation_members: {
+        Row: {
+          investigation_id: string;
+          user_id: string;
+          joined_at: string;
+          left_at: string | null;
+          group_id: string | null;
+        };
+        Insert: {
+          investigation_id: string;
+          user_id: string;
+          joined_at?: string;
+          left_at?: string | null;
+          group_id?: string | null;
+        };
+        Update: {
+          left_at?: string | null;
+          group_id?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -615,6 +675,50 @@ export type Database = {
       reject_location_submission: {
         Args: { p_submission_id: string; p_note: string | null };
         Returns: void;
+      };
+      create_investigation: {
+        Args: {
+          p_team_id: string;
+          p_location_name: string;
+          p_venue_id: string | null;
+          p_name: string | null;
+        };
+        Returns: string;
+      };
+      join_investigation_by_code: {
+        Args: { p_code: string };
+        Returns: string;
+      };
+      close_investigation: {
+        Args: { p_investigation_id: string };
+        Returns: void;
+      };
+      auto_close_idle_investigations: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      list_active_investigations_for_user: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          id: string;
+          team_id: string;
+          team_name: string;
+          team_slug: string;
+          host_id: string;
+          host_handle: string;
+          name: string | null;
+          location_name: string;
+          venue_id: string | null;
+          join_code: string;
+          started_at: string;
+          last_activity_at: string;
+          member_count: number;
+          i_am_member: boolean;
+        }>;
+      };
+      list_investigation_cases: {
+        Args: { p_investigation_id: string };
+        Returns: any[];
       };
     };
   };
