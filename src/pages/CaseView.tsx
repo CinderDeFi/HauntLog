@@ -1171,14 +1171,18 @@ export default function CaseView() {
 
                   <div className="relative pl-6 md:pl-10 pr-5 md:pr-8 pt-6 md:pt-7 pb-0">
                     {/* META ROW: entry number + chip + star indicator left,
-                        timestamp + actions right. Smaller, recedes. */}
-                    <div className="flex items-center justify-between mb-4 gap-3">
+                        timestamp + actions right. Smaller, recedes.
+                        The min-width-0 on the right side forces the
+                        timestamp to wrap below if needed instead of
+                        colliding with the chip on a narrow viewport. */}
+                    <div className="flex items-start justify-between mb-1 gap-x-4 gap-y-1 flex-wrap">
                       <div className="flex items-center gap-2 md:gap-3 min-w-0">
                         <div className="font-mono text-[10px] md:text-xs tracking-[0.2em] text-white/50 shrink-0">
                           // ENTRY {entryNumber}
                         </div>
                         <span
                           className={`px-2 py-0.5 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded tracking-widest shrink-0`}
+                          title={equipmentLabel(log.equipmentId, caseFile.customEquipment)}
                         >
                           {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
                         </span>
@@ -1221,6 +1225,13 @@ export default function CaseView() {
                           </button>
                         )}
                       </div>
+                    </div>
+
+                    {/* Equipment full-name subhead — decodes the chip
+                        abbreviation right here so a reader doesn't have
+                        to guess what EXP / SB7 / K2 mean. */}
+                    <div className="font-mono text-[10px] md:text-xs tracking-[0.2em] text-white/35 uppercase mb-4">
+                      {equipmentLabel(log.equipmentId, caseFile.customEquipment)}
                     </div>
 
                     {/* OBSERVATION — the testimony. Large serif italic,
