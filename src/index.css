@@ -4,8 +4,56 @@
 
 @layer base {
   :root {
-    --haunt-red: #E24B4A;
+    /* Brand & UI tokens. These are the DEFAULT (normal) theme.
+       Field Mode (html[data-mode="field"]) overrides them below. */
+    --haunt-red: #E24B4A;          /* primary accent */
+    --haunt-red-strong: #c93b3a;   /* hover state */
+    --haunt-red-soft: rgba(226, 75, 74, 0.10);  /* tinted bg */
+    --haunt-red-edge: rgba(226, 75, 74, 0.30);  /* tinted border */
+    --hl-bg: #000000;              /* page background */
+    --hl-surface: #18181b;         /* card/zinc-900 */
+    --hl-text: #ffffff;            /* primary text */
+    --hl-text-muted: rgba(255, 255, 255, 0.70);
+    --hl-pulse-opacity: 0.75;      /* live-pulse glow strength */
   }
+
+  /* Field Mode — for night investigations in dark environments.
+     Dim amber accent preserves dark adaptation better than bright red.
+     Backgrounds gain a warm undertone. Text whites soften. Pulses
+     dampened so the screen doesn't flash. */
+  html[data-mode="field"] {
+    --haunt-red: #b85d1a;          /* dim amber */
+    --haunt-red-strong: #8f4413;   /* hover, slightly deeper */
+    --haunt-red-soft: rgba(184, 93, 26, 0.08);
+    --haunt-red-edge: rgba(184, 93, 26, 0.25);
+    --hl-bg: #0a0604;              /* near-black with warm tint */
+    --hl-surface: #1a1311;
+    --hl-text: rgba(255, 240, 220, 0.78);
+    --hl-text-muted: rgba(255, 240, 220, 0.55);
+    --hl-pulse-opacity: 0.25;
+  }
+
+  /* Apply theme-aware base colors so existing Tailwind classes that
+     reference bg-black, text-white still inherit usable values for the
+     core surfaces. We do this conservatively — components keep their
+     literal classes, but the body fallback warms up in field mode so
+     any uncolored area gets the right tone. */
+  html[data-mode="field"] body {
+    background-color: var(--hl-bg);
+  }
+  html[data-mode="field"] .bg-black {
+    background-color: var(--hl-bg);
+  }
+  html[data-mode="field"] .bg-zinc-900 {
+    background-color: var(--hl-surface);
+  }
+
+  /* In field mode, damp the live-pulse animation so it doesn't strobe. */
+  html[data-mode="field"] .animate-ping {
+    animation-duration: 3s;
+    opacity: var(--hl-pulse-opacity);
+  }
+
   html, body {
     /* Prevent rubber-banding when content reaches edges (the page shell
        has its own scroll containers; the body itself doesn't scroll). */
