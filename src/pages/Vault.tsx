@@ -382,7 +382,9 @@ export default function Vault() {
                     </span>
                   )}
                 </div>
-                <div className="text-white/40">{formatDate(c.endedAt ?? c.startedAt)}</div>
+                <div className="text-white/50 font-mono tabular-nums">
+                  {formatDate(c.endedAt ?? c.startedAt)}
+                </div>
               </div>
             </Link>
           );

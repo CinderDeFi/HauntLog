@@ -18,6 +18,7 @@ import {
 import type { LocationClaimRow } from '../lib/database.types';
 import ClaimVenueModal from '../components/ClaimVenueModal';
 import PublicNav from '../components/PublicNav';
+import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../lib/useAuth';
 import {
   BadgeCheck,
@@ -95,6 +96,7 @@ export default function VenueProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user: authUser } = useAuth();
+  const toast = useToast();
   const [profile, setProfile] = useState<VenueProfile | null>(null);
   const [status, setStatus] = useState<'loading' | 'found' | 'not_found' | 'error'>(
     'loading'
@@ -213,8 +215,12 @@ export default function VenueProfilePage() {
     setWithdrawing(true);
     const res = await withdrawClaim(myClaim.id);
     setWithdrawing(false);
-    if (res.ok) setMyClaim(null);
-    else alert(res.error);
+    if (res.ok) {
+      setMyClaim(null);
+      toast.success('Claim withdrawn');
+    } else {
+      toast.error('Could not withdraw claim', { description: res.error });
+    }
   };
 
   const handleClaimSubmitted = async () => {

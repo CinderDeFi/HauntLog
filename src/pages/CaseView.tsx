@@ -11,6 +11,7 @@ import Comments from '../components/Comments';
 import PhotoLightbox from '../components/PhotoLightbox';
 import AddPhotosModal from '../components/AddPhotosModal';
 import AddAudioModal from '../components/AddAudioModal';
+import { useToast } from '../components/ui/Toast';
 import {
   fetchCaseById,
   fetchPhotosForCase,
@@ -48,6 +49,7 @@ import {
   Plus,
   Sparkles,
   Mic2,
+  Share2,
 } from 'lucide-react';
 
 function formatDateTime(iso: string) {
@@ -153,6 +155,7 @@ export default function CaseView() {
   }, [id, localCase]);
 
   const { user: authUser } = useAuth();
+  const toast = useToast();
 
   // For locally-cached cases (i.e. yours), the owner_id is the current
   // signed-in user. For remotely-fetched ones, we grabbed it above.
@@ -277,7 +280,7 @@ export default function CaseView() {
     if (!photo) return;
     const res = await updatePhotoCaption(photo.id, newCaption);
     if (!res.ok) {
-      alert(res.error);
+      toast.error('Could not save caption', { description: res.error });
       return;
     }
     // Update both the photosByLog cache and the lightbox's caption array.
@@ -302,7 +305,7 @@ export default function CaseView() {
     if (!confirm('Remove this photo?')) return;
     const res = await deleteLogPhoto(photo);
     if (!res.ok) {
-      alert(res.error);
+      toast.error('Could not delete photo', { description: res.error });
       return;
     }
     setPhotosByLog((prev) => {
@@ -315,6 +318,36 @@ export default function CaseView() {
     });
   };
 
+  /** Copy the public case URL to clipboard. Falls back gracefully on
+   * browsers without clipboard permission. On mobile, prefers the
+   * native share sheet when available. */
+  const handleShare = async () => {
+    if (!caseFile) return;
+    const url = `${window.location.origin}/case/${caseFile.id}`;
+    // Try the native share sheet first on supporting browsers (mobile mostly).
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      try {
+        await (navigator as any).share({
+          title: caseFile.title || 'HauntLog case',
+          text: caseFile.summary || `${caseFile.location} · case file on HauntLog`,
+          url,
+        });
+        return;
+      } catch {
+        // User cancelled or share unavailable — fall through to clipboard.
+      }
+    }
+    // Clipboard fallback.
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copied', { description: url });
+    } catch {
+      toast.error('Could not copy link', {
+        description: 'Try selecting the URL from the address bar.',
+      });
+    }
+  };
+
   /** Toggle the starred flag on a log entry. Owner-only — gated in
    * the UI but also enforced by RLS. */
   const handleToggleStar = async (logId: string, currentStarred: boolean) => {
@@ -322,7 +355,7 @@ export default function CaseView() {
     const next = !currentStarred;
     const res = await toggleLogStarAction(caseFile.id, logId, next);
     if (!res.ok) {
-      alert(`Failed to update: ${res.error}`);
+      toast.error('Could not update star', { description: res.error });
     }
   };
 
@@ -376,7 +409,7 @@ export default function CaseView() {
     if (!confirm('Remove this audio clip?')) return;
     const res = await deleteLogAudio(audio);
     if (!res.ok) {
-      alert(res.error);
+      toast.error('Could not delete audio', { description: res.error });
       return;
     }
     setAudioByLog((prev) => {
@@ -627,8 +660,11 @@ export default function CaseView() {
                             onClick={async () => {
                               try {
                                 await updateCaseVisibility(caseFile.id, v);
+                                toast.success('Visibility updated');
                               } catch (e) {
-                                alert(e instanceof Error ? e.message : 'Could not change visibility.');
+                                toast.error('Could not change visibility', {
+                                  description: e instanceof Error ? e.message : undefined,
+                                });
                               }
                               setVisMenuOpen(false);
                             }}
@@ -666,6 +702,17 @@ export default function CaseView() {
               >
                 <LinkIcon className="w-3 h-3" />
                 COPY LINK
+              </button>
+            )}
+
+            {caseFile.visibility !== 'private' && (
+              <button
+                onClick={handleShare}
+                className="text-xs font-mono tracking-widest text-white/60 hover:text-white flex items-center gap-x-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg"
+                title="Copy public link"
+              >
+                <Share2 className="w-3 h-3" />
+                SHARE
               </button>
             )}
 
