@@ -64,7 +64,7 @@ export default function LiveHunt() {
             Ready when you are.
           </h1>
           <p className="text-white/60 max-w-md mx-auto text-sm md:text-base">
-            Start a new hunt, pick your visibility, and we'll keep the timeline second-by-second until you seal the file.
+            Start a new hunt, pick your visibility, and we'll timestamp everything automatically until you seal the file.
           </p>
         </div>
 
