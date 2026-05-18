@@ -2375,3 +2375,94 @@ export async function updateLogEntry(
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+// ============================================================
+// EQUIPMENT LOADOUTS (step 23)
+// ============================================================
+
+export type EquipmentLoadoutRow = {
+  id: string;
+  owner_id: string;
+  name: string;
+  equipment_ids: string[];
+  custom_equipment: Record<string, string> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Max number of saved loadouts per user. Enforced client-side. */
+export const MAX_LOADOUTS_PER_USER = 8;
+
+export async function fetchLoadouts(
+  userId: string
+): Promise<EquipmentLoadoutRow[]> {
+  const { data, error } = await supabase
+    .from('equipment_loadouts')
+    .select('*')
+    .eq('owner_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.warn('[fetchLoadouts] failed:', error.message);
+    return [];
+  }
+  return (data ?? []) as EquipmentLoadoutRow[];
+}
+
+export async function createLoadout(input: {
+  userId: string;
+  name: string;
+  equipmentIds: string[];
+  customEquipment?: Record<string, string>;
+}): Promise<
+  { ok: true; row: EquipmentLoadoutRow } | { ok: false; error: string }
+> {
+  const name = input.name.trim();
+  if (name.length === 0) return { ok: false, error: 'Name is required.' };
+  if (name.length > 60) return { ok: false, error: 'Name is too long (60 max).' };
+  if (input.equipmentIds.length === 0)
+    return { ok: false, error: 'Pick at least one piece of equipment first.' };
+
+  const { data, error } = await supabase
+    .from('equipment_loadouts')
+    .insert({
+      owner_id: input.userId,
+      name,
+      equipment_ids: input.equipmentIds,
+      custom_equipment:
+        input.customEquipment && Object.keys(input.customEquipment).length > 0
+          ? input.customEquipment
+          : null,
+    })
+    .select('*')
+    .maybeSingle();
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? 'Failed to save loadout' };
+  }
+  return { ok: true, row: data as EquipmentLoadoutRow };
+}
+
+export async function deleteLoadout(
+  loadoutId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('equipment_loadouts')
+    .delete()
+    .eq('id', loadoutId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function renameLoadout(
+  loadoutId: string,
+  name: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) return { ok: false, error: 'Name is required.' };
+  if (trimmed.length > 60) return { ok: false, error: 'Name is too long (60 max).' };
+  const { error } = await supabase
+    .from('equipment_loadouts')
+    .update({ name: trimmed })
+    .eq('id', loadoutId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

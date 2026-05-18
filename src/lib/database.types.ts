@@ -446,6 +446,32 @@ export type Database = {
         Update: Partial<LogEntryAudioRow>;
         Relationships: [];
       };
+      equipment_loadouts: {
+        Row: {
+          id: string;
+          owner_id: string;
+          name: string;
+          equipment_ids: string[];
+          custom_equipment: Record<string, string> | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          owner_id: string;
+          name: string;
+          equipment_ids?: string[];
+          custom_equipment?: Record<string, string> | null;
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          equipment_ids?: string[];
+          custom_equipment?: Record<string, string> | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
