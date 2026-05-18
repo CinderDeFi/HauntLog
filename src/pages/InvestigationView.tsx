@@ -392,7 +392,7 @@ export default function InvestigationView() {
                 </>
               )}
             </div>
-            <h1 className="text-2xl md:text-3xl font-medium tracking-tight">
+            <h1 className="text-3xl md:text-5xl font-medium tracking-tighter">
               {inv.name ?? inv.location_name}
             </h1>
             {inv.name && (

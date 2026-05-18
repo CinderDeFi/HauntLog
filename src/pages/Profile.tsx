@@ -143,7 +143,7 @@ export default function Profile() {
           <div className="text-xs font-mono text-haunt-red tracking-widest mb-2">
             // PROFILE
           </div>
-          <h1 className="text-4xl font-medium tracking-tighter">Your profile</h1>
+          <h1 className="text-4xl md:text-5xl font-medium tracking-tighter">Your profile</h1>
           <p className="text-white/60 text-sm mt-1">
             This is how other investigators see you.
           </p>

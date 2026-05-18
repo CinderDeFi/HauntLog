@@ -632,7 +632,7 @@ export default function VenueView() {
       {/* Claim modal placeholder */}
       {showClaim && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+          className="fixed inset-0 z-[1300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
           onClick={() => setShowClaim(false)}
         >
           <div

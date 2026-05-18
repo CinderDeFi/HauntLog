@@ -297,7 +297,7 @@ export default function Atlas() {
         <div className="overflow-y-auto">
           <div className="p-6 border-b border-white/10 sticky top-0 bg-black/90 backdrop-blur z-10">
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h1 className="text-3xl font-medium tracking-tighter">THE ATLAS</h1>
+              <h1 className="text-3xl md:text-5xl font-medium tracking-tighter">THE ATLAS</h1>
               <Link
                 to="/app/venues/submit"
                 className="inline-flex items-center gap-x-1.5 px-3 py-2 rounded-xl bg-haunt-red hover:bg-red-600 text-white text-xs font-mono tracking-widest shrink-0"
@@ -423,7 +423,7 @@ function LiveSheet({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[1100] bg-black/80 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-6"
+      className="fixed inset-0 z-[1300] bg-black/80 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-6"
       onClick={onClose}
     >
       <div
@@ -503,7 +503,7 @@ function FiltersOverlay({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[1100] bg-black/80 backdrop-blur-sm flex items-end justify-center"
+      className="fixed inset-0 z-[1300] bg-black/80 backdrop-blur-sm flex items-end justify-center"
       onClick={onClose}
     >
       <div

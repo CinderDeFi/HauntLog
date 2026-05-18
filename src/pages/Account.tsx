@@ -126,7 +126,7 @@ export default function Account() {
       <div className="text-xs font-mono text-haunt-red tracking-widest mb-2">
         // ACCOUNT
       </div>
-      <h1 className="text-4xl font-medium tracking-tighter mb-2">
+      <h1 className="text-4xl md:text-5xl font-medium tracking-tighter mb-2">
         Account settings
       </h1>
       <p className="text-white/60 text-sm mb-8">
@@ -292,7 +292,7 @@ export default function Account() {
       {/* DELETE CONFIRMATION MODAL */}
       {showDeleteModal && (
         <div
-          className="fixed inset-0 z-[1100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+          className="fixed inset-0 z-[1300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
           onClick={() => !deleting && setShowDeleteModal(false)}
         >
           <div

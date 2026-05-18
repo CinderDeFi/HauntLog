@@ -129,7 +129,7 @@ export default function Feed() {
           <div className="text-xs font-mono text-haunt-red tracking-widest mb-2 flex items-center gap-x-2">
             <Activity className="w-3.5 h-3.5" /> FEED
           </div>
-          <h1 className="text-4xl font-medium tracking-tighter">Recent on HauntLog</h1>
+          <h1 className="text-4xl md:text-5xl font-medium tracking-tighter">Recent on HauntLog</h1>
           <p className="text-white/60 text-sm mt-1">
             Public cases from every investigator. Newest first.
           </p>

@@ -194,7 +194,7 @@ export default function Discover() {
   const searching = committedQuery.length >= 2;
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <div className="mb-6">
         <div className="text-xs font-mono text-haunt-red tracking-widest mb-2 flex items-center gap-x-2">
           <Compass className="w-3.5 h-3.5" /> DISCOVER

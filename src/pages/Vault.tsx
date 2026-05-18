@@ -170,10 +170,10 @@ export default function Vault() {
   }, [cases, filter, scope, tagFilter, search, authUser, equipFilter, starredOnly]);
 
   return (
-    <div>
+    <div className="max-w-4xl mx-auto">
       <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
         <div>
-          <h1 className="text-5xl font-medium tracking-tighter">YOUR VAULT</h1>
+          <h1 className="text-4xl md:text-5xl font-medium tracking-tighter">YOUR VAULT</h1>
           <p className="text-white/60 mt-1">
             {cases.length} sealed {cases.length === 1 ? 'case' : 'cases'}
           </p>

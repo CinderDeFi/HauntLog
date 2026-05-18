@@ -1135,14 +1135,13 @@ export default function CaseView() {
                 <article
                   key={log.id}
                   className="relative overflow-hidden rounded-2xl border border-white/10 hl-evidence-card"
-                  style={{
-                    // Warm dark gradient — black with a whisper of red
-                    // in the corner. Makes the card feel like a document
-                    // under low light instead of a flat zinc rectangle.
-                    background:
-                      'radial-gradient(ellipse at top right, rgba(226,75,74,0.06), transparent 60%), linear-gradient(to bottom right, #18181b, #000000)',
-                  }}
                 >
+                  {/* The gradient + grain are now driven by the
+                      hl-evidence-card CSS class (see index.css). Field
+                      Mode overrides that class to swap to a warmer
+                      palette — keeping the dossier look consistent
+                      with the rest of the app's theme switch. */}
+
                   {/* GHOST NUMBER — massive sequential entry number sitting
                       behind the content. Establishes this as a numbered
                       piece of evidence, not a database row. Hidden on the

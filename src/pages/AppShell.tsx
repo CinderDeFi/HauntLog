@@ -107,8 +107,8 @@ export default function AppShell() {
       <div
         className={
           fullBleed
-            ? 'flex-1 min-h-0 pb-14 md:pb-0 overflow-hidden'
-            : 'max-w-screen-2xl mx-auto w-full px-4 md:px-8 py-6 md:py-8 flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-20 md:pb-8'
+            ? 'flex-1 min-h-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0 overflow-hidden'
+            : 'max-w-screen-2xl mx-auto w-full px-4 md:px-8 py-6 md:py-8 flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8'
         }
         style={fullBleed ? { overscrollBehavior: 'none' } : undefined}
       >
