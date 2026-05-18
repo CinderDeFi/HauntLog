@@ -32,6 +32,7 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useHauntStore();
+  const activeHunt = useHauntStore((s) => s.activeHunt);
   const { signOut, profile, user: authUser } = useAuth();
   const isActive = (match: string) => location.pathname.includes(match);
 
@@ -124,17 +125,29 @@ export default function Navbar() {
             <div className="hidden md:flex items-center gap-x-2 lg:gap-x-4 text-sm">
               {TABS.map((t) => {
                 const Icon = t.icon;
+                const showHuntDot = t.match === '/live' && !!activeHunt;
                 return (
                   <Link
                     key={t.to}
                     to={t.to}
-                    className={`flex items-center gap-x-2 px-3 lg:px-4 py-2 rounded-xl transition-colors ${
+                    className={`relative flex items-center gap-x-2 px-3 lg:px-4 py-2 rounded-xl transition-colors ${
                       isActive(t.match)
                         ? 'bg-white/10 text-white'
                         : 'text-white/70 hover:text-white'
                     }`}
                   >
-                    <Icon className="w-4 h-4" /> {t.label}
+                    <span className="relative inline-flex">
+                      <Icon className="w-4 h-4" />
+                      {showHuntDot && (
+                        <span
+                          className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-haunt-red"
+                          title="Hunt in progress"
+                        >
+                          <span className="absolute inset-0 rounded-full bg-haunt-red animate-ping opacity-75" />
+                        </span>
+                      )}
+                    </span>
+                    {t.label}
                   </Link>
                 );
               })}
@@ -297,6 +310,7 @@ export default function Navbar() {
         {TABS.map((t) => {
           const Icon = t.icon;
           const on = isActive(t.match);
+          const showHuntDot = t.match === '/live' && !!activeHunt;
           return (
             <Link
               key={t.to}
@@ -305,7 +319,16 @@ export default function Navbar() {
                 on ? 'text-haunt-red' : 'text-white/60'
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <span className="relative inline-flex">
+                <Icon className="w-5 h-5" />
+                {showHuntDot && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-haunt-red"
+                  >
+                    <span className="absolute inset-0 rounded-full bg-haunt-red animate-ping opacity-75" />
+                  </span>
+                )}
+              </span>
               <span className="text-[10px] font-mono tracking-widest">{t.label}</span>
             </Link>
           );
