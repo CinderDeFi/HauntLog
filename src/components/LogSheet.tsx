@@ -145,11 +145,11 @@ export default function LogSheet({ open, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-6"
+      className="fixed inset-0 z-[1300] bg-black/80 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-6"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-zinc-950 border border-white/10 rounded-t-3xl md:rounded-3xl max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-2xl bg-zinc-950 border border-white/10 rounded-t-3xl md:rounded-3xl max-h-[90vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-zinc-950">
