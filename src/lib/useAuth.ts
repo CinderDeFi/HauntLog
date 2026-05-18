@@ -42,9 +42,23 @@ async function loadProfile(userId: string): Promise<ProfileRow | null> {
   return data;
 }
 
+/** Apply (or clear) the data-mode="field" attribute on <html> based on
+ * the profile preference. CSS handles all visual changes via attribute
+ * selectors, so no components need to know about field mode. */
+function applyFieldMode(profile: ProfileRow | null) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (profile?.field_mode) {
+    root.setAttribute('data-mode', 'field');
+  } else {
+    root.removeAttribute('data-mode');
+  }
+}
+
 async function applySession(session: Session | null) {
   if (!session) {
     setCached({ status: 'signed_out', user: null, session: null, profile: null });
+    applyFieldMode(null);
     // Step 27: any in-progress hunt belongs to the previous user.
     // Drop it from local store so it can't leak to the next user
     // who signs in on this browser.
@@ -62,6 +76,7 @@ async function applySession(session: Session | null) {
     session,
     profile,
   });
+  applyFieldMode(profile);
   // Step 27: defensive — if localStorage has a stale activeHunt from a
   // previous account, discard it.
   try {
@@ -109,6 +124,29 @@ export function useAuth() {
     if (!cached.user) return;
     const profile = await loadProfile(cached.user.id);
     setCached({ profile });
+    applyFieldMode(profile);
+  }, []);
+
+  /** Toggle Field Mode for the current user. Applies the CSS attribute
+   * immediately for snappy UX, then writes the preference to the
+   * profile so it persists across devices. If the write fails, the
+   * optimistic UI stays for this session (no rollback) — the
+   * preference will be re-read from the server on next sign-in. */
+  const setFieldMode = useCallback(async (on: boolean) => {
+    const profile = cached.profile;
+    if (!profile) return;
+    // Optimistic update: apply theme + cache new profile shape.
+    const next: ProfileRow = { ...profile, field_mode: on };
+    setCached({ profile: next });
+    applyFieldMode(next);
+    // Persist.
+    const { error } = await supabase
+      .from('profiles')
+      .update({ field_mode: on })
+      .eq('id', profile.id);
+    if (error) {
+      console.warn('[auth] failed to persist field_mode:', error.message);
+    }
   }, []);
 
   return {
@@ -118,5 +156,6 @@ export function useAuth() {
     profile: state.profile,
     signOut,
     refreshProfile,
+    setFieldMode,
   };
 }

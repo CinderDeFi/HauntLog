@@ -24,6 +24,7 @@ export type ProfileRow = {
   tiktok: string | null;
   facebook: string | null;
   youtube: string | null;
+  field_mode: boolean;
   created_at: string;
   updated_at: string;
 };
