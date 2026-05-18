@@ -487,7 +487,13 @@ export const useHauntStore = create<HauntState>()(
         }
 
         let checkIn: CheckIn | undefined;
-        if (init.visibility !== 'private') {
+        // Create a check-in for any non-private hunt (standard Atlas
+        // surfacing), AND for any hunt under an active investigation —
+        // even private ones — so teammates can see live activity. Private
+        // check-ins are filtered out of the public Atlas at read time.
+        const createCheckInRow =
+          init.visibility !== 'private' || !!init.investigationId;
+        if (createCheckInRow) {
           checkIn = {
             id: 'ci_' + Date.now(),
             huntId: hunt.id,
