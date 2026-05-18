@@ -268,6 +268,14 @@ type HauntState = {
   // Post-seal: case owner can change visibility at any time.
   updateCaseVisibility: (caseId: string, visibility: Visibility) => Promise<void>;
 
+  // Post-seal: case owner can toggle the starred flag on individual log
+  // entries. Useful for marking highlights after reviewing the session.
+  toggleLogStar: (
+    caseId: string,
+    logId: string,
+    starred: boolean
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+
   // Soft-delete a case. Owner only. Returns error string on failure.
   deleteCase: (caseId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 
@@ -682,6 +690,30 @@ export const useHauntStore = create<HauntState>()(
           set({ cases: before });
           throw new Error(result.error);
         }
+      },
+
+      toggleLogStar: async (caseId, logId, starred) => {
+        // Optimistic local update — flip the matching log entry's
+        // starred field on the cached case. Rollback if server rejects.
+        const before = get().cases;
+        set((s) => ({
+          cases: s.cases.map((c) =>
+            c.id !== caseId
+              ? c
+              : {
+                  ...c,
+                  logs: c.logs.map((l) =>
+                    l.id === logId ? { ...l, starred } : l
+                  ),
+                }
+          ),
+        }));
+        const result = await dataLayer.setLogStarred(logId, starred);
+        if (!result.ok) {
+          set({ cases: before });
+          return result;
+        }
+        return { ok: true };
       },
 
       deleteCase: async (caseId) => {
