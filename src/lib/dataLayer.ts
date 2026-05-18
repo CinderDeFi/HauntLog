@@ -2193,3 +2193,152 @@ export async function setLogStarred(
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+// ============================================================
+// AUDIO ATTACHMENTS (step 22)
+// ============================================================
+
+const AUDIO_BUCKET = 'log-audio';
+
+export type LogEntryAudioRow = {
+  id: string;
+  log_entry_id: string;
+  case_id: string;
+  owner_id: string;
+  storage_path: string;
+  mime_type: string;
+  bytes: number;
+  duration_seconds: number | null;
+  caption: string | null;
+  created_at: string;
+};
+
+/**
+ * Resolve a list of audio storage paths to short-lived signed URLs.
+ * Mirrors getSignedPhotoUrls; the bucket is private so we can't
+ * just construct a public URL.
+ */
+export async function getSignedAudioUrls(
+  storagePaths: string[],
+  expiresInSeconds = 3600
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (storagePaths.length === 0) return result;
+  const { data, error } = await supabase.storage
+    .from(AUDIO_BUCKET)
+    .createSignedUrls(storagePaths, expiresInSeconds);
+  if (error) return result;
+  (data ?? []).forEach((r: any) => {
+    if (r.path && r.signedUrl) result.set(r.path, r.signedUrl);
+  });
+  return result;
+}
+
+/**
+ * Upload a single audio file to storage and insert the matching
+ * log_entry_audio row.
+ *
+ * Path: `{user_id}/{case_id}/{log_entry_id}/{audio_id}.{ext}`
+ */
+export async function uploadLogAudio(input: {
+  userId: string;
+  caseId: string;
+  logEntryId: string;
+  blob: Blob;
+  mimeType: string;
+  durationSeconds?: number;
+  caption?: string;
+}): Promise<{ ok: true; row: LogEntryAudioRow } | { ok: false; error: string }> {
+  const audioId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  // Map common audio MIME types to a safe file extension. Anything we
+  // can't recognise falls back to .audio so the upload still succeeds.
+  const ext = (() => {
+    const m = input.mimeType.toLowerCase();
+    if (m === 'audio/mpeg' || m === 'audio/mp3') return 'mp3';
+    if (m === 'audio/wav' || m === 'audio/x-wav') return 'wav';
+    if (m === 'audio/mp4' || m === 'audio/m4a' || m === 'audio/x-m4a') return 'm4a';
+    if (m === 'audio/ogg') return 'ogg';
+    if (m === 'audio/webm') return 'webm';
+    return 'audio';
+  })();
+
+  const storagePath = `${input.userId}/${input.caseId}/${input.logEntryId}/${audioId}.${ext}`;
+
+  // 1. Upload to storage
+  const { error: upErr } = await supabase.storage
+    .from(AUDIO_BUCKET)
+    .upload(storagePath, input.blob, {
+      contentType: input.mimeType,
+      upsert: false,
+    });
+  if (upErr) {
+    return { ok: false, error: `Upload failed: ${upErr.message}` };
+  }
+
+  // 2. Insert metadata row
+  const { data, error } = await supabase
+    .from('log_entry_audio')
+    .insert({
+      id: audioId,
+      log_entry_id: input.logEntryId,
+      case_id: input.caseId,
+      owner_id: input.userId,
+      storage_path: storagePath,
+      mime_type: input.mimeType,
+      bytes: input.blob.size,
+      duration_seconds: input.durationSeconds ?? null,
+      caption: input.caption ?? null,
+    })
+    .select('*')
+    .maybeSingle();
+
+  if (error || !data) {
+    // Try to clean up the orphaned storage object.
+    await supabase.storage.from(AUDIO_BUCKET).remove([storagePath]).catch(() => {});
+    return { ok: false, error: error?.message ?? 'Failed to record audio clip' };
+  }
+  return { ok: true, row: data as LogEntryAudioRow };
+}
+
+/**
+ * Delete an audio clip: storage object first, then the metadata row.
+ * RLS ensures only the owner (or admin) can do this.
+ */
+export async function deleteLogAudio(
+  audio: LogEntryAudioRow
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error: storErr } = await supabase.storage
+    .from(AUDIO_BUCKET)
+    .remove([audio.storage_path]);
+  if (storErr) {
+    console.warn('[deleteLogAudio] storage delete warning:', storErr.message);
+  }
+  const { error } = await supabase
+    .from('log_entry_audio')
+    .delete()
+    .eq('id', audio.id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/**
+ * Fetch all audio clips for a case, grouped by log entry id. Uses
+ * the list_case_audio RPC which checks case visibility server-side.
+ */
+export async function fetchAudioForCase(
+  caseId: string
+): Promise<Map<string, LogEntryAudioRow[]>> {
+  const result = new Map<string, LogEntryAudioRow[]>();
+  const { data, error } = await supabase.rpc('list_case_audio', { p_case_id: caseId });
+  if (error || !data) return result;
+  for (const r of data as LogEntryAudioRow[]) {
+    const arr = result.get(r.log_entry_id) ?? [];
+    arr.push(r);
+    result.set(r.log_entry_id, arr);
+  }
+  return result;
+}

@@ -295,6 +295,19 @@ export type LogEntryPhotoRow = {
   created_at: string;
 };
 
+export type LogEntryAudioRow = {
+  id: string;
+  log_entry_id: string;
+  case_id: string;
+  owner_id: string;
+  storage_path: string;
+  mime_type: string;
+  bytes: number;
+  duration_seconds: number | null;
+  caption: string | null;
+  created_at: string;
+};
+
 export type LocationManagerRole = 'owner' | 'manager';
 
 export type LocationManagerRow = {
@@ -424,6 +437,15 @@ export type Database = {
         Update: Partial<LogEntryPhotoRow>;
         Relationships: [];
       };
+      log_entry_audio: {
+        Row: LogEntryAudioRow;
+        Insert: Pick<
+          LogEntryAudioRow,
+          'log_entry_id' | 'case_id' | 'owner_id' | 'storage_path' | 'mime_type' | 'bytes'
+        > & Partial<LogEntryAudioRow>;
+        Update: Partial<LogEntryAudioRow>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -551,6 +573,10 @@ export type Database = {
       list_case_photos: {
         Args: { p_case_id: string };
         Returns: LogEntryPhotoRow[];
+      };
+      list_case_audio: {
+        Args: { p_case_id: string };
+        Returns: LogEntryAudioRow[];
       };
       submit_location: {
         Args: { p_payload: unknown };

@@ -273,3 +273,79 @@ export async function cropWideForBanner(file: File): Promise<ProcessedImage> {
     height: BANNER_HEIGHT,
   };
 }
+
+// ============================================================
+// AUDIO VALIDATION (step 22)
+// ============================================================
+// Co-located with image validators since they share the
+// ProcessError shape and similar shape of error reporting.
+
+export const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
+
+export const ALLOWED_AUDIO_MIME_TYPES = [
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/mp4',
+  'audio/m4a',
+  'audio/x-m4a',
+  'audio/ogg',
+  'audio/webm',
+] as const;
+
+export const MAX_AUDIO_PER_LOG = 4;
+
+export function validateAudioFile(file: File): ProcessError | { ok: true } {
+  if (!(ALLOWED_AUDIO_MIME_TYPES as readonly string[]).includes(file.type)) {
+    return { ok: false, kind: 'bad_type', type: file.type || 'unknown' };
+  }
+  if (file.size > MAX_AUDIO_BYTES) {
+    return { ok: false, kind: 'too_big', bytes: file.size };
+  }
+  return { ok: true };
+}
+
+export function describeAudioValidationError(e: ProcessError): string {
+  switch (e.kind) {
+    case 'too_big':
+      return `Audio file is too large (${(e.bytes / (1024 * 1024)).toFixed(1)} MB). Max is 25 MB.`;
+    case 'bad_type':
+      return `Unsupported audio format: ${e.type}. Use MP3, WAV, M4A, OGG, or WebM.`;
+    case 'decode_failed':
+      return `Couldn't read this audio file. Try a different one.`;
+    case 'unknown':
+      return e.message;
+  }
+}
+
+/**
+ * Best-effort audio duration probe. Loads the file into an <audio>
+ * element and reads .duration once metadata is ready. Returns null
+ * on any failure so the caller can still upload without duration.
+ */
+export function probeAudioDuration(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('audio');
+    a.preload = 'metadata';
+    const cleanup = () => {
+      URL.revokeObjectURL(url);
+    };
+    a.onloadedmetadata = () => {
+      const d = a.duration;
+      cleanup();
+      resolve(Number.isFinite(d) && d > 0 ? d : null);
+    };
+    a.onerror = () => {
+      cleanup();
+      resolve(null);
+    };
+    // Safety timeout — give up after 5s if metadata never fires.
+    setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, 5000);
+    a.src = url;
+  });
+}
