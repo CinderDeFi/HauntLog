@@ -20,6 +20,7 @@ import {
 } from '../lib/dataLayer';
 import { MAX_PHOTOS_PER_LOG } from '../lib/imageProcess';
 import { SAMPLE_CASE, isSampleCaseId } from '../lib/sampleCase';
+import { equipmentChipColors } from '../lib/equipmentColors';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/useAuth';
 import {
@@ -644,8 +645,15 @@ export default function CaseView() {
             <span className="break-words">{exportError}</span>
           </div>
         )}
-        <div className="mb-4 text-xs font-mono text-white/40 tracking-widest">
-          CASE FILE · #{caseFile.id}
+        {/* CASE FILE header — visually distinctive sealed badge */}
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
+          <div className="font-mono text-[10px] md:text-xs bg-white/10 border border-white/10 px-3 md:px-4 py-1.5 rounded-2xl tracking-widest inline-flex items-center gap-x-2">
+            <ShieldCheck className="w-3 h-3 md:w-3.5 md:h-3.5 text-haunt-red" />
+            CASE FILE · SEALED
+          </div>
+          <div className="text-[10px] md:text-xs text-white/40 font-mono tracking-widest">
+            #{caseFile.id}
+          </div>
         </div>
         <h1 className="text-5xl md:text-6xl font-medium tracking-tighter leading-[1.05] mb-3">
           {caseFile.title}
@@ -739,7 +747,9 @@ export default function CaseView() {
               // STARRED HIGHLIGHTS · {starredLogs.length}
             </div>
             <div className="space-y-3">
-              {starredLogs.map((log) => (
+              {starredLogs.map((log) => {
+                const chip = equipmentChipColors(log.equipmentId);
+                return (
                 <div
                   key={log.id}
                   className="bg-yellow-400/5 border border-yellow-400/20 rounded-2xl p-5 flex items-start gap-4"
@@ -750,7 +760,7 @@ export default function CaseView() {
                       <span className="font-mono text-xs tracking-widest text-white/60">
                         {formatTime(log.timestamp)}
                       </span>
-                      <span className="px-2 py-0.5 bg-white/10 text-[10px] font-mono rounded-md tracking-widest">
+                      <span className={`px-2 py-0.5 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded-md tracking-widest`}>
                         {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
                       </span>
                     </div>
@@ -783,7 +793,8 @@ export default function CaseView() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -802,13 +813,15 @@ export default function CaseView() {
             {sortedLogs.length === 0 && (
               <div className="p-6 text-center text-white/40 text-sm">No events were logged.</div>
             )}
-            {sortedLogs.map((log) => (
+            {sortedLogs.map((log) => {
+              const chip = equipmentChipColors(log.equipmentId);
+              return (
               <div key={log.id} className="flex items-start gap-4 px-4 md:px-6 py-3">
                 <div className="font-mono text-xs text-white/40 w-20 pt-1 shrink-0 tabular-nums">
                   {formatTime(log.timestamp)}
                 </div>
                 <div className="shrink-0">
-                  <span className="px-2 py-1 bg-white/10 text-[10px] font-mono rounded-md tracking-widest">
+                  <span className={`px-2 py-1 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded-md tracking-widest`}>
                     {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
                   </span>
                 </div>
@@ -842,7 +855,8 @@ export default function CaseView() {
                   <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 shrink-0 mt-1" />
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -862,8 +876,31 @@ export default function CaseView() {
           </div>
         )}
 
-        <div className="mt-12 text-center text-xs font-mono text-white/30 tracking-widest">
-          SEALED · CASE FILE #{caseFile.id}
+        {/* Cinematic sealed signature block — mirrors the landing page sample card */}
+        <div className="mt-12 bg-zinc-900 border border-white/10 rounded-3xl p-6 md:p-8">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-x-3 min-w-0 flex-1">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gradient-to-br from-haunt-red to-purple-600 flex items-center justify-center text-white text-xs md:text-sm font-bold shrink-0">
+                {(caseFile.visibility === 'anonymous'
+                  ? '?'
+                  : (caseFile.ownerHandle ?? '?').replace(/^@/, '').slice(0, 2).toUpperCase())}
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] md:text-xs font-mono tracking-widest text-white/40">
+                  SEALED · SIGNED BY
+                </div>
+                <div className="font-mono text-sm md:text-base text-white truncate">
+                  {caseFile.visibility === 'anonymous'
+                    ? 'ANONYMOUS INVESTIGATOR'
+                    : (caseFile.ownerHandle ?? '').toUpperCase()}
+                </div>
+                <div className="text-[10px] md:text-xs font-mono text-white/40 break-all mt-0.5">
+                  HAUNTLOG.APP/CASE/{caseFile.id}
+                </div>
+              </div>
+            </div>
+            <Star className="w-6 h-6 md:w-7 md:h-7 text-yellow-400 fill-yellow-400 shrink-0" />
+          </div>
         </div>
       </div>
 
