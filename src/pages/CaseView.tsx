@@ -942,31 +942,66 @@ export default function CaseView() {
             #{caseFile.id}
           </div>
         </div>
-        <h1 className="text-5xl md:text-6xl font-medium tracking-tighter leading-[1.05] mb-3">
+        <h1 className="text-5xl md:text-7xl font-medium tracking-tighter leading-[1.02] mb-4">
           {caseFile.title}
         </h1>
-        <div className="flex items-center gap-x-2 text-white/70 mb-1">
+        <div className="flex items-center gap-x-2 text-white/70 mb-3">
           <MapPin className="w-4 h-4 text-haunt-red" />
-          <span>
+          <span className="text-base md:text-lg">
             {caseFile.location}
             {caseFile.zone ? ` · ${caseFile.zone}` : ''}
           </span>
         </div>
-        <div className="text-sm text-white/40 mb-8">
-          Logged by <span className="text-white/70 font-medium">{ownerDisplay}</span> · Started{' '}
-          {formatDateTime(caseFile.startedAt)}
-          {caseFile.endedAt && ` · ${formatDuration(caseFile.startedAt, caseFile.endedAt)} long`}
+        {/* Chain-of-custody strip — replaces the four big stat tiles.
+            Compact, monospace, sits like a registry footer right under
+            the hero. Encodes everything those tiles encoded but reads
+            like a document instead of a dashboard. */}
+        <div className="font-mono text-[10px] md:text-xs tracking-widest text-white/45 mb-10 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span>
+            LOGGED BY <span className="text-white/80">{ownerDisplay}</span>
+          </span>
+          <span className="text-white/20">·</span>
+          <span>{formatDateTime(caseFile.startedAt).toUpperCase()}</span>
+          {caseFile.endedAt && (
+            <>
+              <span className="text-white/20">·</span>
+              <span>
+                {formatDuration(caseFile.startedAt, caseFile.endedAt).toUpperCase()} DURATION
+              </span>
+            </>
+          )}
+          <span className="text-white/20">·</span>
+          <span>
+            {caseFile.logs.length} {caseFile.logs.length === 1 ? 'EVENT' : 'EVENTS'}
+          </span>
+          {caseFile.equipmentUsed.length > 0 && (
+            <>
+              <span className="text-white/20">·</span>
+              <span>
+                {caseFile.equipmentUsed.length}{' '}
+                {caseFile.equipmentUsed.length === 1 ? 'DEVICE' : 'DEVICES'}
+              </span>
+            </>
+          )}
+          {starredLogs.length > 0 && (
+            <>
+              <span className="text-white/20">·</span>
+              <span className="inline-flex items-center gap-x-1 text-yellow-400/80">
+                <Star className="w-3 h-3 fill-yellow-400" /> {starredLogs.length} STARRED
+              </span>
+            </>
+          )}
         </div>
 
         {caseFile.summary && (
-          <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-8">
+          <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-8 max-w-3xl">
             <div className="text-xs font-mono text-white/40 tracking-widest mb-3">// SUMMARY</div>
             <p className="text-white/80 leading-relaxed whitespace-pre-wrap">{caseFile.summary}</p>
           </div>
         )}
 
         {caseFile.tags && caseFile.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-8">
+          <div className="flex flex-wrap gap-2 mb-10">
             {caseFile.tags.map((t) => (
               <span
                 key={t}
@@ -978,39 +1013,13 @@ export default function CaseView() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-4">
-            <div className="text-3xl font-mono tabular-nums">{caseFile.logs.length}</div>
-            <div className="text-xs text-white/40 mt-1">EVENTS</div>
-          </div>
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-4">
-            <div className="text-3xl font-mono tabular-nums">{caseFile.equipmentUsed.length}</div>
-            <div className="text-xs text-white/40 mt-1">DEVICES</div>
-          </div>
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-4">
-            <div className="text-3xl font-mono tabular-nums">
-              {formatDuration(caseFile.startedAt, caseFile.endedAt)}
-            </div>
-            <div className="text-xs text-white/40 mt-1">DURATION</div>
-          </div>
-          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-4">
-            <div className="text-3xl font-mono tabular-nums flex items-center gap-x-2">
-              {starredLogs.length}
-              {starredLogs.length > 0 && (
-                <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-              )}
-            </div>
-            <div className="text-xs text-white/40 mt-1">STARRED</div>
-          </div>
-        </div>
-
         {/* Equipment manifest only if present */}
         {deviceCounts.length > 0 && (
-          <div className="mb-10">
+          <div className="mb-10 max-w-3xl mx-auto">
             <div className="text-xs font-mono text-white/40 tracking-widest mb-4">
               // EQUIPMENT MANIFEST
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {deviceCounts.map((d) => (
                 <div key={d.id} className="bg-zinc-900 border border-white/10 rounded-2xl p-4">
                   <div className="font-mono text-xs tracking-widest text-haunt-red mb-1">
@@ -1029,7 +1038,7 @@ export default function CaseView() {
 
         {/* Starred highlights */}
         {starredLogs.length > 0 && (
-          <div className="mb-10">
+          <div className="mb-10 max-w-3xl mx-auto">
             <div className="text-xs font-mono text-white/40 tracking-widest mb-4">
               // STARRED HIGHLIGHTS · {starredLogs.length}
             </div>
@@ -1101,8 +1110,8 @@ export default function CaseView() {
         )}
 
         {/* Full log */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-4">
+        <div className="mb-10 max-w-3xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
             <div className="text-xs font-mono text-white/40 tracking-widest">
               // FULL SESSION LOG
             </div>
@@ -1115,7 +1124,7 @@ export default function CaseView() {
               No events were logged.
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {sortedLogs.map((log, logIdx) => {
                 const chip = equipmentChipColors(log.equipmentId);
                 const entryNumber = String(logIdx + 1).padStart(3, '0');
@@ -1124,20 +1133,52 @@ export default function CaseView() {
                 return (
                 <article
                   key={log.id}
-                  className="relative bg-gradient-to-br from-zinc-900 to-black border border-white/10 rounded-2xl overflow-hidden hl-evidence-card"
+                  className="relative overflow-hidden rounded-2xl border border-white/10 hl-evidence-card"
+                  style={{
+                    // Warm dark gradient — black with a whisper of red
+                    // in the corner. Makes the card feel like a document
+                    // under low light instead of a flat zinc rectangle.
+                    background:
+                      'radial-gradient(ellipse at top right, rgba(226,75,74,0.06), transparent 60%), linear-gradient(to bottom right, #18181b, #000000)',
+                  }}
                 >
-                  {/* Left accent bar — equipment-keyed color */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${chip.bar}`} aria-hidden />
+                  {/* GHOST NUMBER — massive sequential entry number sitting
+                      behind the content. Establishes this as a numbered
+                      piece of evidence, not a database row. Hidden on the
+                      smallest screens where it would interfere. */}
+                  <div
+                    aria-hidden
+                    className="hidden sm:block absolute -top-4 md:-top-8 right-4 md:right-8 font-mono font-bold leading-none select-none pointer-events-none"
+                    style={{
+                      fontSize: 'clamp(120px, 22vw, 240px)',
+                      color: 'rgba(255,255,255,0.025)',
+                      letterSpacing: '-0.05em',
+                    }}
+                  >
+                    {entryNumber}
+                  </div>
 
-                  <div className="pl-5 md:pl-7 pr-4 md:pr-6 py-5 md:py-6">
-                    {/* HEADER: entry number on left, timestamp on right */}
-                    <div className="flex items-center justify-between mb-3 gap-3">
+                  {/* CORNER REGISTRATION MARKS — tiny crosshairs in each
+                      corner. Free dossier-vocabulary, costs almost nothing
+                      visually, instantly reads as "document". */}
+                  <CornerMark className="absolute top-2 left-2" />
+                  <CornerMark className="absolute top-2 right-2" />
+                  <CornerMark className="absolute bottom-2 left-2" />
+                  <CornerMark className="absolute bottom-2 right-2" />
+
+                  {/* Equipment-colored left rule, runs full height */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${chip.bar}`} aria-hidden />
+
+                  <div className="relative pl-6 md:pl-10 pr-5 md:pr-8 pt-6 md:pt-7 pb-0">
+                    {/* META ROW: entry number + chip + star indicator left,
+                        timestamp + actions right. Smaller, recedes. */}
+                    <div className="flex items-center justify-between mb-4 gap-3">
                       <div className="flex items-center gap-2 md:gap-3 min-w-0">
-                        <div className="font-mono text-[10px] md:text-xs tracking-widest text-white/40 shrink-0">
+                        <div className="font-mono text-[10px] md:text-xs tracking-[0.2em] text-white/50 shrink-0">
                           // ENTRY {entryNumber}
                         </div>
                         <span
-                          className={`px-2 py-0.5 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded-md tracking-widest shrink-0`}
+                          className={`px-2 py-0.5 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded tracking-widest shrink-0`}
                         >
                           {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
                         </span>
@@ -1146,7 +1187,7 @@ export default function CaseView() {
                         )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <div className="font-mono text-[10px] md:text-xs text-white/40 tabular-nums">
+                        <div className="font-mono text-[10px] md:text-xs text-white/45 tabular-nums">
                           {formatTime(log.timestamp)}
                         </div>
                         {isCaseOwner && !isSample && editingLogId !== log.id && (
@@ -1155,7 +1196,7 @@ export default function CaseView() {
                             onClick={() => handleStartEdit(log)}
                             aria-label="Edit this log entry"
                             title="Edit"
-                            className="ml-1 p-1 rounded-md text-white/20 hover:text-white/80 hover:bg-white/5 transition-colors"
+                            className="ml-1 p-1 rounded-md text-white/25 hover:text-white/80 hover:bg-white/5 transition-colors"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -1171,7 +1212,7 @@ export default function CaseView() {
                             className={`p-1 rounded-md transition-colors ${
                               log.starred
                                 ? 'text-yellow-400 hover:bg-yellow-400/10'
-                                : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
+                                : 'text-white/25 hover:text-yellow-400/70 hover:bg-white/5'
                             }`}
                           >
                             <Star
@@ -1182,13 +1223,11 @@ export default function CaseView() {
                       </div>
                     </div>
 
-                    {/* Hairline divider under the meta row */}
-                    <div className="h-px bg-white/10 mb-4" />
-
-                    {/* OBSERVATION — the testimony itself.
-                        Large serif italic. This is the moment. */}
+                    {/* OBSERVATION — the testimony. Large serif italic,
+                        capped at a comfortable reading width like a real
+                        paragraph in a document. */}
                     {editingLogId === log.id ? (
-                      <div className="space-y-2">
+                      <div className="space-y-2 max-w-2xl">
                         <div>
                           <label className="block text-[10px] font-mono text-white/40 tracking-widest mb-1">
                             OBSERVATION
@@ -1243,33 +1282,36 @@ export default function CaseView() {
                         </div>
                       </div>
                     ) : (
-                      <>
+                      <div className="max-w-2xl">
                         <p
-                          className="font-serif italic text-lg md:text-2xl leading-snug text-white break-words"
-                          style={{ fontFamily: '"Cormorant Garamond", "Iowan Old Style", "Apple Garamond", Georgia, serif' }}
+                          className="font-serif italic text-xl md:text-3xl leading-snug text-white break-words"
+                          style={{
+                            fontFamily:
+                              '"Cormorant Garamond", "Iowan Old Style", "Apple Garamond", Georgia, serif',
+                          }}
                         >
                           {log.observation}
                         </p>
                         {log.note && (
-                          <p className="text-sm md:text-base text-white/55 mt-3 break-words flex gap-x-2">
+                          <p className="text-sm md:text-base text-white/55 mt-4 break-words flex gap-x-2">
                             <span className="text-haunt-red shrink-0 select-none">→</span>
                             <span>{log.note}</span>
                           </p>
                         )}
-                      </>
+                      </div>
                     )}
 
                     {log.data && (
-                      <div className="mt-3">
+                      <div className="mt-4 max-w-2xl">
                         <EquipmentDataDisplay equipmentId={log.equipmentId} data={log.data} />
                       </div>
                     )}
 
                     {/* PHOTOS — labeled EXHIBIT A, B, C... */}
                     {(isCaseOwner || logPhotos.length > 0) && (
-                      <div className="mt-5">
+                      <div className="mt-6">
                         {logPhotos.length > 0 && (
-                          <div className="text-[10px] font-mono text-white/40 tracking-widest mb-2">
+                          <div className="text-[10px] font-mono text-white/50 tracking-[0.2em] mb-3">
                             // EXHIBITS · {logPhotos.length}
                           </div>
                         )}
@@ -1290,9 +1332,9 @@ export default function CaseView() {
                     {/* AUDIO — separate section with its own dignity */}
                     {(logAudio.length > 0 ||
                       (isCaseOwner && !isSample && logAudio.length < MAX_AUDIO_PER_LOG)) && (
-                      <div className="mt-5">
+                      <div className="mt-6">
                         {logAudio.length > 0 && (
-                          <div className="text-[10px] font-mono text-white/40 tracking-widest mb-2">
+                          <div className="text-[10px] font-mono text-white/50 tracking-[0.2em] mb-3">
                             // AUDIO CAPTURE · {logAudio.length}
                           </div>
                         )}
@@ -1311,6 +1353,24 @@ export default function CaseView() {
                         />
                       </div>
                     )}
+
+                    {/* CHAIN-OF-CUSTODY FOOTER — registry-style strip at
+                        the bottom of every entry. Repeats info that's
+                        elsewhere on the page, but the repetition IS the
+                        point: this is how documents reassure you. */}
+                    <div className="mt-6 pt-4 border-t border-white/5">
+                      <div className="font-mono text-[9px] md:text-[10px] tracking-[0.2em] text-white/30 flex flex-wrap items-center gap-x-2 gap-y-1 pb-4">
+                        <span>RECORDED {formatTime(log.timestamp)}</span>
+                        {caseFile.zone && (
+                          <>
+                            <span className="text-white/15">·</span>
+                            <span className="uppercase">{caseFile.zone}</span>
+                          </>
+                        )}
+                        <span className="text-white/15">·</span>
+                        <span className="uppercase">#{caseFile.id}</span>
+                      </div>
+                    </div>
                   </div>
                 </article>
                 );
@@ -1319,12 +1379,12 @@ export default function CaseView() {
           )}
         </div>
 
-        <div className="bg-zinc-900/40 border border-dashed border-white/10 rounded-3xl p-6 text-center text-white/40 text-sm">
+        <div className="max-w-3xl mx-auto bg-zinc-900/40 border border-dashed border-white/10 rounded-3xl p-6 text-center text-white/40 text-sm">
           Video evidence attachments coming in a later release.
         </div>
 
         {!isSample && (
-          <div className="mt-8">
+          <div className="mt-8 max-w-3xl mx-auto">
             <Comments
               caseId={caseFile.id}
               caseOwnerId={caseOwnerProfileId}
@@ -1334,7 +1394,7 @@ export default function CaseView() {
         )}
 
         {/* Cinematic sealed signature block — mirrors the landing page sample card */}
-        <div className="mt-12 bg-zinc-900 border border-white/10 rounded-3xl p-6 md:p-8">
+        <div className="mt-12 max-w-3xl mx-auto bg-zinc-900 border border-white/10 rounded-3xl p-6 md:p-8">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-x-3 min-w-0 flex-1">
               <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gradient-to-br from-haunt-red to-purple-600 flex items-center justify-center text-white text-xs md:text-sm font-bold shrink-0">
@@ -1413,6 +1473,25 @@ export default function CaseView() {
 // 4-column grid, square thumbs, owner sees trash button on hover.
 // Optionally shows a "+" tile to add more photos (post-seal).
 // ============================================================
+/** Tiny crosshair drawn at each corner of an evidence card. Pure
+ * decoration — establishes dossier-page vocabulary at near-zero
+ * visual cost. Subtle by default; scales naturally with the page. */
+function CornerMark({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      className={`text-white/15 ${className}`}
+      style={{ pointerEvents: 'none' }}
+    >
+      <line x1="5" y1="0" x2="5" y2="10" stroke="currentColor" strokeWidth="0.75" />
+      <line x1="0" y1="5" x2="10" y2="5" stroke="currentColor" strokeWidth="0.75" />
+    </svg>
+  );
+}
+
 function PhotoGrid({
   photos,
   signedUrls,
