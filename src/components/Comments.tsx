@@ -8,6 +8,10 @@ import {
 } from '../lib/dataLayer';
 import { useAuth } from '../lib/useAuth';
 import {
+  detectEquipmentInText,
+  equipmentChipColors,
+} from '../lib/equipmentColors';
+import {
   MessageSquare,
   Send,
   Loader2,
@@ -239,7 +243,7 @@ export default function Comments({ caseId, caseOwnerId, visibility }: Props) {
                     </span>
                   </div>
                   <p className="text-sm text-white/80 mt-1 whitespace-pre-wrap break-words">
-                    {c.body}
+                    {renderCommentBody(c.body)}
                   </p>
 
                   {(canModerate || c.author?.id === user?.id) && (
@@ -278,4 +282,32 @@ export default function Comments({ caseId, caseOwnerId, visibility }: Props) {
       )}
     </div>
   );
+}
+
+/**
+ * Renders a comment body, auto-detecting equipment mentions and
+ * styling them as inline chips with brand-consistent colors. Reuses
+ * the same palette as the case view so the visual language is
+ * consistent: "K-II spike" reads with a red K-II chip in the middle.
+ */
+function renderCommentBody(body: string): React.ReactNode {
+  const segments = detectEquipmentInText(body);
+  if (segments.length === 1 && segments[0].kind === 'text') {
+    return body;
+  }
+  return segments.map((seg, i) => {
+    if (seg.kind === 'text') {
+      // Use a fragment so React doesn't complain about keyed text nodes.
+      return <span key={i}>{seg.value}</span>;
+    }
+    const chip = equipmentChipColors(seg.id);
+    return (
+      <span
+        key={i}
+        className={`inline-flex items-center px-1.5 py-0.5 mx-0.5 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded tracking-widest align-baseline`}
+      >
+        {seg.label}
+      </span>
+    );
+  });
 }

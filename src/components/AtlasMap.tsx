@@ -103,10 +103,15 @@ export const AtlasMap = forwardRef<AtlasMapHandle, Props>(function AtlasMap(
     const map = L.map(containerRef.current, {
       center: [39.5, -98.5],
       zoom: 4,
-      zoomControl: true,
+      // Disable the default top-left zoom control because it collides
+      // with the LIVE / NOBODY ON SITE pill. We add a fresh one below
+      // in the bottom-right corner instead.
+      zoomControl: false,
       attributionControl: true,
       worldCopyJump: true,
     });
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     L.tileLayer(TILE_URL, {
       attribution: TILE_ATTR,
