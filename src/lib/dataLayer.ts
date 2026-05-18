@@ -2959,3 +2959,42 @@ export async function listActiveHuntsInInvestigation(
   }
   return (data ?? []) as ActiveHuntInInvestigation[];
 }
+
+// ============================================================
+// INVESTIGATION SUMMARY STATS (step 39)
+// ============================================================
+
+export type InvestigationSummaryStats = {
+  total_cases: number;
+  total_log_entries: number;
+  total_photos: number;
+  total_audio: number;
+  duration_seconds: number;
+};
+
+/** Aggregate counts for the investigation summary header. Single
+ * round-trip; returns zeros if the investigation has nothing. */
+export async function fetchInvestigationSummaryStats(
+  investigationId: string
+): Promise<InvestigationSummaryStats> {
+  const { data, error } = await supabase.rpc('investigation_summary_stats', {
+    p_investigation_id: investigationId,
+  });
+  if (error || !data || data.length === 0) {
+    return {
+      total_cases: 0,
+      total_log_entries: 0,
+      total_photos: 0,
+      total_audio: 0,
+      duration_seconds: 0,
+    };
+  }
+  const r = (data as any[])[0];
+  return {
+    total_cases: Number(r.total_cases ?? 0),
+    total_log_entries: Number(r.total_log_entries ?? 0),
+    total_photos: Number(r.total_photos ?? 0),
+    total_audio: Number(r.total_audio ?? 0),
+    duration_seconds: Number(r.duration_seconds ?? 0),
+  };
+}

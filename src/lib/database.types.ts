@@ -866,6 +866,16 @@ export type Database = {
           group_zone: string | null;
         }>;
       };
+      investigation_summary_stats: {
+        Args: { p_investigation_id: string };
+        Returns: Array<{
+          total_cases: number;
+          total_log_entries: number;
+          total_photos: number;
+          total_audio: number;
+          duration_seconds: number;
+        }>;
+      };
     };
   };
 };
