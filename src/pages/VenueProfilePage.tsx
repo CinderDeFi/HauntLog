@@ -17,9 +17,9 @@ import {
 } from '../lib/dataLayer';
 import type { LocationClaimRow } from '../lib/database.types';
 import ClaimVenueModal from '../components/ClaimVenueModal';
+import PublicNav from '../components/PublicNav';
 import { useAuth } from '../lib/useAuth';
 import {
-  ArrowLeft,
   BadgeCheck,
   Bookmark,
   CalendarPlus,
@@ -285,21 +285,7 @@ export default function VenueProfilePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Top bar (lightweight, since this can also be visited unauthenticated) */}
-      <header className="border-b border-white/10">
-        <div className="max-w-screen-xl mx-auto px-6 md:px-8 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-x-2">
-            <img src="/hauntlog-mark-color.svg" alt="HauntLog" className="h-8 w-8" />
-            <span className="font-mono text-2xl tracking-tighter">HAUNTLOG</span>
-          </Link>
-          <Link
-            to="/app/atlas"
-            className="text-sm text-white/70 hover:text-white inline-flex items-center gap-x-2"
-          >
-            <ArrowLeft className="w-4 h-4" /> BACK TO ATLAS
-          </Link>
-        </div>
-      </header>
+      <PublicNav />
 
       <main className="max-w-3xl mx-auto px-6 md:px-8 py-10">
         {/* ----- HERO ----- */}
