@@ -95,3 +95,88 @@ export function equipmentChipColors(
   if (known && COLORS[known.id]) return COLORS[known.id];
   return FALLBACK;
 }
+
+// ============================================================
+// Free-text equipment detection (used for comments)
+// ============================================================
+// Build a map of detectable spellings to canonical equipment ids.
+// We accept the abbreviation (K-II, SB7) and a few common variants.
+// Detection is case-insensitive and bounded by non-word chars so
+// "voicemail" doesn't match "voice".
+
+type DetectableEquipment = {
+  pattern: RegExp;
+  id: string;
+  label: string;
+};
+
+const DETECTABLE: DetectableEquipment[] = [
+  { id: 'k2', label: 'K-II', pattern: /\bK[-\s]?II\b/gi },
+  { id: 'sb7', label: 'SB7', pattern: /\bSB[-\s]?7\b/gi },
+  { id: 'rempod', label: 'REM', pattern: /\bREM(\s?Pod)?\b/gi },
+  { id: 'thermal', label: 'TEMP', pattern: /\b(thermal|temp)\b/gi },
+  { id: 'voice', label: 'VOICE', pattern: /\b(EVP|voice\s?recorder)\b/gi },
+  { id: 'geophone', label: 'GEO', pattern: /\b(geophone|geo\s?pod)\b/gi },
+];
+
+export type TextSegment =
+  | { kind: 'text'; value: string }
+  | { kind: 'equipment'; id: string; label: string; raw: string };
+
+/**
+ * Split a free-text string into segments where equipment mentions
+ * become typed objects suitable for chip-rendering. The original
+ * text is preserved verbatim — `raw` contains exactly what was
+ * matched, not the canonical label.
+ *
+ * If no equipment is detected, returns a single text segment.
+ */
+export function detectEquipmentInText(input: string): TextSegment[] {
+  if (!input) return [{ kind: 'text', value: input }];
+
+  // Collect all matches across all patterns with their positions.
+  type Hit = { start: number; end: number; id: string; label: string; raw: string };
+  const hits: Hit[] = [];
+  for (const det of DETECTABLE) {
+    // Reset regex state for each call since they have /g flag.
+    det.pattern.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = det.pattern.exec(input)) !== null) {
+      hits.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        id: det.id,
+        label: det.label,
+        raw: m[0],
+      });
+    }
+  }
+
+  if (hits.length === 0) return [{ kind: 'text', value: input }];
+
+  // Sort by position, then resolve overlaps by keeping the first.
+  hits.sort((a, b) => a.start - b.start);
+  const filtered: Hit[] = [];
+  let cursor = -1;
+  for (const h of hits) {
+    if (h.start >= cursor) {
+      filtered.push(h);
+      cursor = h.end;
+    }
+  }
+
+  // Build segments interleaving text and equipment hits.
+  const segments: TextSegment[] = [];
+  let pos = 0;
+  for (const h of filtered) {
+    if (h.start > pos) {
+      segments.push({ kind: 'text', value: input.slice(pos, h.start) });
+    }
+    segments.push({ kind: 'equipment', id: h.id, label: h.label, raw: h.raw });
+    pos = h.end;
+  }
+  if (pos < input.length) {
+    segments.push({ kind: 'text', value: input.slice(pos) });
+  }
+  return segments;
+}

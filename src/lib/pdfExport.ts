@@ -23,6 +23,29 @@ const TEXT_MAIN: [number, number, number] = [20, 20, 22];
 const TEXT_MUTED: [number, number, number] = [110, 110, 115];
 const RULE: [number, number, number] = [210, 210, 215];
 
+// Equipment chip colors for PDF rendering. Approximate matches of the
+// Tailwind palette used in the web UI, picked for legibility on a
+// white page. Each tuple is [r, g, b].
+const EQUIP_RGB: Record<string, [number, number, number]> = {
+  sb7: [168, 85, 247], // purple-500
+  k2: [239, 68, 68], // red-500
+  rempod: [16, 185, 129], // emerald-500
+  thermal: [6, 182, 212], // cyan-500
+  voice: [245, 158, 11], // amber-500
+  geophone: [59, 130, 246], // blue-500
+};
+
+function equipmentColorForPdf(id: string): [number, number, number] {
+  if (id === PERSONAL_EXPERIENCE_ID) return [110, 110, 115];
+  return EQUIP_RGB[id] ?? [110, 110, 115];
+}
+
+function equipmentAbbrForPdf(id: string): string {
+  if (id === PERSONAL_EXPERIENCE_ID) return 'EXP';
+  const known = EQUIPMENT_CATALOG.find((e) => e.id === id);
+  return known?.abbr ?? id.slice(0, 4).toUpperCase();
+}
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -349,9 +372,7 @@ export async function exportCasePDF(caseFile: CaseFile, baseUrl?: string): Promi
     doc.text('LOG ENTRIES', margin, 100);
 
     const tableBody = caseFile.logs.map((l: LogEntry, i) => {
-      const equipment =
-        equipmentDisplayName(l.equipmentId, caseFile.customEquipment) +
-        (l.equipmentLabel ? ` (${l.equipmentLabel})` : '');
+      const abbr = equipmentAbbrForPdf(l.equipmentId);
       let observationCell = (l.starred ? '★ ' : '') + l.observation;
       if (l.note) observationCell += `\nNote: ${l.note}`;
       const dataLine = formatLogData(l.data);
@@ -362,14 +383,14 @@ export async function exportCasePDF(caseFile: CaseFile, baseUrl?: string): Promi
           hour: '2-digit',
           minute: '2-digit',
         }),
-        equipment,
+        abbr,
         observationCell,
       ];
     });
 
     autoTable(doc, {
       startY: 115,
-      head: [['#', 'TIME', 'EQUIPMENT', 'OBSERVATION']],
+      head: [['#', 'TIME', 'GEAR', 'OBSERVATION']],
       body: tableBody,
       theme: 'striped',
       headStyles: {
@@ -387,10 +408,22 @@ export async function exportCasePDF(caseFile: CaseFile, baseUrl?: string): Promi
         valign: 'top',
       },
       columnStyles: {
-        0: { cellWidth: 28, halign: 'right', textColor: TEXT_MUTED, font: 'courier' },
-        1: { cellWidth: 56, font: 'courier', fontSize: 9 },
-        2: { cellWidth: 110, font: 'helvetica', fontStyle: 'italic', textColor: TEXT_MUTED, fontSize: 8 },
+        0: { cellWidth: 22, halign: 'right', textColor: TEXT_MUTED, font: 'courier' },
+        1: { cellWidth: 52, font: 'courier', fontSize: 9 },
+        2: { cellWidth: 50, font: 'courier', fontStyle: 'bold', fontSize: 9, halign: 'center' },
         3: { fontSize: 10 },
+      },
+      // Color the GEAR column text by equipment type so a quick scan
+      // matches the visual rhythm of the web UI.
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 2) {
+          const rowIdx = data.row.index;
+          const log = caseFile.logs[rowIdx];
+          if (log) {
+            const rgb = equipmentColorForPdf(log.equipmentId);
+            data.cell.styles.textColor = rgb;
+          }
+        }
       },
       margin: { left: margin, right: margin, top: 90 },
       didDrawPage: (data) => {
@@ -547,9 +580,11 @@ export async function exportCasePDF(caseFile: CaseFile, baseUrl?: string): Promi
 
     // Case URL or sealed marker
     const footerLeft = baseUrl
-      ? `${baseUrl.replace(/\/$/, '')}/case/${caseFile.id}`
+      ? `SEALED · ${baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '').toUpperCase()}/CASE/${caseFile.id}`
       : `SEALED · #${caseFile.id}`;
+    doc.setFont('courier', 'bold');
     doc.text(footerLeft, margin, pageHeight - 24);
+    doc.setFont('helvetica', 'normal');
   }
 
   // ----------------------------------------------------------
