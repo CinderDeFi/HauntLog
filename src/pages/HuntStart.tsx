@@ -23,6 +23,10 @@ import {
   deleteLoadout,
   MAX_LOADOUTS_PER_USER,
   type EquipmentLoadoutRow,
+  listInvestigationGroups,
+  fetchInvestigationMembers,
+  createInvestigationGroupWithMembers,
+  joinInvestigationGroup,
 } from '../lib/dataLayer';
 import { useToast } from '../components/ui/Toast';
 import LocationPicker from '../components/LocationPicker';
@@ -38,6 +42,8 @@ import {
   CheckCircle2,
   User as UserIcon,
   Users as UsersIcon,
+  Users,
+  UsersRound,
   BadgeCheck,
   Sparkles,
   Radio,
@@ -46,7 +52,7 @@ import {
   Loader2,
 } from 'lucide-react';
 
-type Step = 'visibility' | 'location' | 'equipment' | 'review';
+type Step = 'visibility' | 'location' | 'group' | 'equipment' | 'review';
 
 export default function HuntStart() {
   const navigate = useNavigate();
@@ -129,6 +135,49 @@ export default function HuntStart() {
     };
   }, [authUser]);
 
+  // Step 26: load this investigation's groups + members so the
+  // GROUP step can show options + tag candidates.
+  useEffect(() => {
+    const investigationId = searchParams.get('investigation');
+    if (!investigationId) return;
+    let cancelled = false;
+    setGroupsLoading(true);
+    (async () => {
+      try {
+        const [g, m] = await Promise.all([
+          listInvestigationGroups(investigationId),
+          fetchInvestigationMembers(investigationId),
+        ]);
+        if (cancelled) return;
+        setInvestigationGroups(
+          g.map((x) => ({
+            id: x.id,
+            zone: x.zone,
+            leader_handle: x.leader_handle,
+            member_count: x.member_count,
+            ended_at: x.ended_at,
+          }))
+        );
+        setInvestigationMembers(
+          m.map((x) => ({
+            user_id: x.user_id,
+            handle: x.handle,
+            display_name: x.display_name,
+            avatar_url: x.avatar_url,
+          }))
+        );
+      } catch {
+        // Non-fatal — group step still works, just empty.
+      } finally {
+        if (!cancelled) setGroupsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Starter setup: when arriving via ?starter=1 (from the LiveHunt empty
   // state), prefill some reasonable defaults so a first-time user can
   // get a feel for the flow without picking everything from scratch.
@@ -145,10 +194,48 @@ export default function HuntStart() {
   const groupParam = searchParams.get('group');
   const groupZoneParam = searchParams.get('zone');
 
+  // Step 26: the GROUP step only appears when starting under an
+  // investigation. Solo hunts don't see it.
+  const STEPS: Step[] = investigationParam
+    ? ['visibility', 'location', 'group', 'equipment', 'review']
+    : ['visibility', 'location', 'equipment', 'review'];
+
   // GOING SOLO override: when set, the hunt is part of the investigation
   // but NOT a specific group. Toggleable in-page so the user can flip
   // their mind without going back.
   const [goingSolo, setGoingSolo] = useState(false);
+
+  // Step 26: in-flow group selection. Only relevant when starting
+  // under an active investigation.
+  // groupMode = 'create' | 'join' | 'solo'
+  type GroupMode = 'create' | 'join' | 'solo';
+  const [groupMode, setGroupMode] = useState<GroupMode>(
+    // If the URL provided a group param, default to join mode preselected.
+    searchParams.get('group') ? 'join' : 'solo'
+  );
+  const [groupZoneInput, setGroupZoneInput] = useState('');
+  const [selectedJoinGroupId, setSelectedJoinGroupId] = useState<string | null>(
+    searchParams.get('group')
+  );
+  const [tagSelections, setTagSelections] = useState<Set<string>>(new Set());
+  const [investigationGroups, setInvestigationGroups] = useState<
+    Array<{
+      id: string;
+      zone: string;
+      leader_handle: string | null;
+      member_count: number;
+      ended_at: string | null;
+    }>
+  >([]);
+  const [investigationMembers, setInvestigationMembers] = useState<
+    Array<{
+      user_id: string;
+      handle: string | null;
+      display_name: string | null;
+      avatar_url: string | null;
+    }>
+  >([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
 
   useEffect(() => {
     if (searchParams.get('starter') === '1') {
@@ -294,10 +381,21 @@ export default function HuntStart() {
     ? venueChosen && !!geo.coords && gpsGood
     : venueChosen;
 
+  // Step 26: group-step validation.
+  // - 'solo': always OK (no commitment)
+  // - 'join': must have picked a group
+  // - 'create': must have typed a zone name
+  const canAdvanceGroup =
+    !investigationParam ||
+    groupMode === 'solo' ||
+    (groupMode === 'join' && !!selectedJoinGroupId) ||
+    (groupMode === 'create' && groupZoneInput.trim().length > 0);
+
   const canStart = canAdvanceLocation; // equipment is optional
 
-  const handleStart = () => {
-    if (!canStart) return;
+  const [starting, setStarting] = useState(false);
+  const handleStart = async () => {
+    if (!canStart || starting) return;
 
     const location = selectedVenue ? selectedVenue.name : newVenueName.trim();
     const lat = selectedVenue?.lat ?? geo.coords?.lat;
@@ -305,10 +403,62 @@ export default function HuntStart() {
 
     const selectedTeam = teamId ? myTeams.find((m) => m.team_id === teamId) : null;
 
+    // Step 26: resolve the group choice before launching.
+    let finalGroupId: string | undefined;
+    let finalZone: string | undefined = zone.trim() || undefined;
+
+    if (investigationParam) {
+      setStarting(true);
+      try {
+        if (groupMode === 'create' && groupZoneInput.trim()) {
+          const res = await createInvestigationGroupWithMembers(
+            investigationParam,
+            groupZoneInput.trim(),
+            Array.from(tagSelections)
+          );
+          if (!res.ok) {
+            setStarting(false);
+            toast.error('Could not create group', { description: res.error });
+            return;
+          }
+          finalGroupId = res.id;
+          // Use the new group's zone as the case's zone if user hasn't set one.
+          if (!finalZone) finalZone = groupZoneInput.trim();
+        } else if (groupMode === 'join' && selectedJoinGroupId) {
+          const res = await joinInvestigationGroup(selectedJoinGroupId);
+          if (!res.ok) {
+            setStarting(false);
+            toast.error('Could not join group', { description: res.error });
+            return;
+          }
+          finalGroupId = selectedJoinGroupId;
+          // Use the joined group's zone if user hasn't set one.
+          if (!finalZone) {
+            const joined = investigationGroups.find((g) => g.id === selectedJoinGroupId);
+            if (joined) finalZone = joined.zone;
+          }
+        }
+        // groupMode === 'solo' leaves finalGroupId undefined.
+      } catch (e) {
+        setStarting(false);
+        toast.error('Could not set up group', {
+          description: e instanceof Error ? e.message : String(e),
+        });
+        return;
+      }
+      setStarting(false);
+    }
+
+    // Backwards-compat: if the page was opened with ?group=... and the
+    // user didn't change the GROUP step away from the default, honor it.
+    if (!finalGroupId && groupParam && !goingSolo) {
+      finalGroupId = groupParam;
+    }
+
     startHunt({
       venueId: selectedVenue?.id,
       location,
-      zone: zone.trim() || undefined,
+      zone: finalZone,
       lat,
       lng,
       visibility,
@@ -320,7 +470,7 @@ export default function HuntStart() {
       teamName: selectedTeam?.team.name,
       teamSlug: selectedTeam?.team.slug,
       investigationId: investigationParam ?? undefined,
-      groupId: !goingSolo && groupParam ? groupParam : undefined,
+      groupId: finalGroupId,
     });
 
     navigate('/app/live');
@@ -402,12 +552,11 @@ export default function HuntStart() {
         {/* Mobile: dots + active label */}
         <div className="md:hidden">
           <div className="flex items-center gap-1.5 mb-2">
-            {(['visibility', 'location', 'equipment', 'review'] as Step[]).map((s, i) => {
+            {STEPS.map((s, i) => {
+              const stepIdx = STEPS.indexOf(step);
+              const myIdx = STEPS.indexOf(s);
               const on = step === s;
-              const done =
-                (s === 'visibility' && step !== 'visibility') ||
-                (s === 'location' && (step === 'equipment' || step === 'review')) ||
-                (s === 'equipment' && step === 'review');
+              const done = myIdx < stepIdx;
               return (
                 <div key={s} className="flex items-center gap-1.5 flex-1">
                   <div
@@ -415,9 +564,9 @@ export default function HuntStart() {
                       on ? 'bg-haunt-red' : done ? 'bg-white/40' : 'bg-white/10'
                     }`}
                   />
-                  {i === 3 && (
+                  {i === STEPS.length - 1 && (
                     <span className="font-mono text-[10px] tracking-widest text-white/40 shrink-0">
-                      {String(i + 1)}/4
+                      {String(STEPS.indexOf(step) + 1)}/{STEPS.length}
                     </span>
                   )}
                 </div>
@@ -426,24 +575,26 @@ export default function HuntStart() {
           </div>
           <div className="font-mono text-xs tracking-widest text-haunt-red">
             STEP{' '}
+            {String(STEPS.indexOf(step) + 1).padStart(2, '0')} ·{' '}
             {step === 'visibility'
-              ? '01 · IDENTITY'
+              ? 'IDENTITY'
               : step === 'location'
-              ? '02 · LOCATION'
+              ? 'LOCATION'
+              : step === 'group'
+              ? 'GROUP'
               : step === 'equipment'
-              ? '03 · EQUIPMENT'
-              : '04 · REVIEW'}
+              ? 'EQUIPMENT'
+              : 'REVIEW'}
           </div>
         </div>
 
         {/* Desktop: full pill row */}
         <div className="hidden md:flex items-center gap-2 text-xs font-mono tracking-widest">
-          {(['visibility', 'location', 'equipment', 'review'] as Step[]).map((s, i) => {
+          {STEPS.map((s, i) => {
+            const stepIdx = STEPS.indexOf(step);
+            const myIdx = STEPS.indexOf(s);
             const on = step === s;
-            const done =
-              (s === 'visibility' && step !== 'visibility') ||
-              (s === 'location' && (step === 'equipment' || step === 'review')) ||
-              (s === 'equipment' && step === 'review');
+            const done = myIdx < stepIdx;
             return (
               <div key={s} className="flex items-center gap-2">
                 <div
@@ -457,7 +608,7 @@ export default function HuntStart() {
                 >
                   {String(i + 1).padStart(2, '0')} · {s.toUpperCase()}
                 </div>
-                {i < 3 && <div className="w-3 h-px bg-white/10" />}
+                {i < STEPS.length - 1 && <div className="w-3 h-px bg-white/10" />}
               </div>
             );
           })}
@@ -769,6 +920,206 @@ export default function HuntStart() {
         </div>
       )}
 
+      {/* STEP — GROUP (only when starting under an investigation) */}
+      {step === 'group' && investigationParam && (
+        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-4 md:p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-xs font-mono text-haunt-red tracking-widest">
+              GROUP
+            </div>
+            {groupsLoading && <Loader2 className="w-3 h-3 animate-spin text-white/40" />}
+          </div>
+          <p className="text-sm text-white/50 mb-4">
+            You're hunting under a team investigation. Pick a group, create your own, or go solo.
+          </p>
+
+          {/* Mode picker */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setGroupMode('create')}
+              className={`p-3 rounded-2xl border text-left transition-all ${
+                groupMode === 'create'
+                  ? 'bg-haunt-red/10 border-haunt-red text-white'
+                  : 'bg-black border-white/10 text-white/70 hover:border-white/30'
+              }`}
+            >
+              <div className="flex items-center gap-x-2 mb-0.5">
+                <UsersRound className="w-3.5 h-3.5 text-haunt-red" />
+                <div className="text-xs font-mono tracking-widest">NEW GROUP</div>
+              </div>
+              <div className="text-[11px] text-white/50">
+                Lead a sweep. Tag who's with you.
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGroupMode('join')}
+              disabled={
+                investigationGroups.filter((g) => !g.ended_at).length === 0
+              }
+              className={`p-3 rounded-2xl border text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                groupMode === 'join'
+                  ? 'bg-haunt-red/10 border-haunt-red text-white'
+                  : 'bg-black border-white/10 text-white/70 hover:border-white/30'
+              }`}
+            >
+              <div className="flex items-center gap-x-2 mb-0.5">
+                <Users className="w-3.5 h-3.5 text-haunt-red" />
+                <div className="text-xs font-mono tracking-widest">JOIN EXISTING</div>
+              </div>
+              <div className="text-[11px] text-white/50">
+                {investigationGroups.filter((g) => !g.ended_at).length === 0
+                  ? 'No groups yet.'
+                  : `${investigationGroups.filter((g) => !g.ended_at).length} active`}
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGroupMode('solo')}
+              className={`p-3 rounded-2xl border text-left transition-all ${
+                groupMode === 'solo'
+                  ? 'bg-haunt-red/10 border-haunt-red text-white'
+                  : 'bg-black border-white/10 text-white/70 hover:border-white/30'
+              }`}
+            >
+              <div className="flex items-center gap-x-2 mb-0.5">
+                <UserIcon className="w-3.5 h-3.5 text-haunt-red" />
+                <div className="text-xs font-mono tracking-widest">GOING SOLO</div>
+              </div>
+              <div className="text-[11px] text-white/50">
+                Under the umbrella but on your own.
+              </div>
+            </button>
+          </div>
+
+          {/* CREATE: zone input + tag members */}
+          {groupMode === 'create' && (
+            <div className="space-y-4 bg-black/40 border border-white/10 rounded-2xl p-3">
+              <div>
+                <label className="block text-[10px] font-mono text-white/40 tracking-widest mb-1">
+                  GROUP NAME / ZONE
+                </label>
+                <input
+                  value={groupZoneInput}
+                  onChange={(e) => setGroupZoneInput(e.target.value)}
+                  placeholder='e.g. "Basement" or "Third floor"'
+                  maxLength={80}
+                  className="w-full bg-black border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-haunt-red outline-none"
+                />
+              </div>
+
+              {investigationMembers.filter(
+                (m) => m.user_id !== authUser?.id
+              ).length > 0 && (
+                <div>
+                  <label className="block text-[10px] font-mono text-white/40 tracking-widest mb-2">
+                    TAG WHO'S WITH YOU (OPTIONAL)
+                  </label>
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                    {investigationMembers
+                      .filter((m) => m.user_id !== authUser?.id)
+                      .map((m) => {
+                        const checked = tagSelections.has(m.user_id);
+                        return (
+                          <label
+                            key={m.user_id}
+                            className={`flex items-center gap-2 p-2 rounded-xl cursor-pointer border transition-colors ${
+                              checked
+                                ? 'bg-haunt-red/10 border-haunt-red/40'
+                                : 'border-white/5 hover:border-white/20'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setTagSelections((prev) => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) next.add(m.user_id);
+                                  else next.delete(m.user_id);
+                                  return next;
+                                });
+                              }}
+                              className="accent-haunt-red"
+                            />
+                            {m.avatar_url ? (
+                              <img
+                                src={m.avatar_url}
+                                alt=""
+                                className="w-7 h-7 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-haunt-red/20 flex items-center justify-center text-haunt-red text-xs font-mono">
+                                {(m.handle ?? '?')[0]?.toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm truncate">
+                                {m.display_name ?? `@${m.handle}`}
+                              </div>
+                              {m.display_name && m.handle && (
+                                <div className="text-[10px] font-mono text-white/40">
+                                  @{m.handle}
+                                </div>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                  </div>
+                  <div className="text-[10px] text-white/40 mt-2">
+                    Tagged members will be added to your group automatically. They can leave anytime.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* JOIN: pick existing */}
+          {groupMode === 'join' && (
+            <div className="space-y-2">
+              {investigationGroups.filter((g) => !g.ended_at).length === 0 ? (
+                <div className="text-sm text-white/40 text-center py-4">
+                  No active groups yet. Switch to NEW GROUP to start one.
+                </div>
+              ) : (
+                investigationGroups
+                  .filter((g) => !g.ended_at)
+                  .map((g) => {
+                    const on = selectedJoinGroupId === g.id;
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setSelectedJoinGroupId(g.id)}
+                        className={`w-full text-left rounded-2xl p-3 border transition-colors ${
+                          on
+                            ? 'bg-haunt-red/10 border-haunt-red'
+                            : 'bg-black border-white/10 hover:border-white/30'
+                        }`}
+                      >
+                        <div className="text-sm font-medium">{g.zone}</div>
+                        <div className="text-[10px] font-mono text-white/40 tracking-widest mt-0.5">
+                          LED BY @{g.leader_handle ?? '?'} · {g.member_count}{' '}
+                          {g.member_count === 1 ? 'MEMBER' : 'MEMBERS'}
+                        </div>
+                      </button>
+                    );
+                  })
+              )}
+            </div>
+          )}
+
+          {/* SOLO: just info */}
+          {groupMode === 'solo' && (
+            <div className="bg-black/40 border border-white/10 rounded-2xl p-3 text-sm text-white/60">
+              Your case will link to the investigation umbrella but not any group. Good for a free-roam sweep.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* STEP 3 — EQUIPMENT (OPTIONAL) */}
       {step === 'equipment' && (
         <div className="bg-zinc-900 border border-white/10 rounded-3xl p-4 md:p-6 mb-6">
@@ -1036,10 +1387,9 @@ export default function HuntStart() {
       <div className="flex items-center gap-2 md:gap-3">
         <button
           onClick={() => {
-            if (step === 'visibility') navigate(-1);
-            else if (step === 'location') setStep('visibility');
-            else if (step === 'equipment') setStep('location');
-            else setStep('equipment');
+            const idx = STEPS.indexOf(step);
+            if (idx <= 0) navigate(-1);
+            else setStep(STEPS[idx - 1]);
           }}
           className="px-4 md:px-6 py-3 md:py-4 text-white/60 hover:text-white font-mono tracking-widest text-xs md:text-sm whitespace-nowrap"
         >
@@ -1049,13 +1399,18 @@ export default function HuntStart() {
         {step !== 'review' ? (
           <button
             onClick={() => {
-              if (step === 'visibility' && canAdvanceVisibility) setStep('location');
-              else if (step === 'location' && canAdvanceLocation) setStep('equipment');
-              else if (step === 'equipment') setStep('review');
+              const idx = STEPS.indexOf(step);
+              if (idx < 0) return;
+              // Gate forward navigation per current step.
+              if (step === 'visibility' && !canAdvanceVisibility) return;
+              if (step === 'location' && !canAdvanceLocation) return;
+              if (step === 'group' && !canAdvanceGroup) return;
+              setStep(STEPS[idx + 1]);
             }}
             disabled={
               (step === 'visibility' && !canAdvanceVisibility) ||
-              (step === 'location' && !canAdvanceLocation)
+              (step === 'location' && !canAdvanceLocation) ||
+              (step === 'group' && !canAdvanceGroup)
             }
             className="flex-1 bg-haunt-red hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white py-3 md:py-4 rounded-2xl font-mono tracking-widest text-sm md:text-lg active:scale-[0.98] transition-all"
           >
