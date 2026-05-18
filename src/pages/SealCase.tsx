@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useHauntStore, equipmentAbbr } from '../store/useHauntStore';
 import { Lock, Globe, EyeOff, MapPin, Star, ShieldCheck, Loader2 } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
 
 export default function SealCase() {
   const navigate = useNavigate();
+  const toast = useToast();
   const activeHunt = useHauntStore((s) => s.activeHunt);
   const sealCase = useHauntStore((s) => s.sealCase);
 
@@ -68,7 +70,19 @@ export default function SealCase() {
       setSealError(result.error);
       return;
     }
-    navigate(`/case/${result.sealed.id}`);
+    // If some photos didn't upload, warn so the user knows. Most of
+    // the time this is zero / zero (clean seal). The case is sealed
+    // regardless; missing photos can be added later from the case page.
+    if (result.photosFailed > 0) {
+      toast.error(
+        `${result.photosFailed} of ${result.photosAttempted} photos didn't upload`,
+        {
+          description:
+            'The case is sealed. You can retry adding photos from the case page.',
+        }
+      );
+    }
+    navigate(`/case/${result.sealed.id}?fresh=1`);
   };
 
   return (

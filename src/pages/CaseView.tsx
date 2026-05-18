@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   useHauntStore,
   equipmentLabel,
@@ -105,6 +105,14 @@ function visibilityDescription(v: Visibility): string {
 
 export default function CaseView() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // ?fresh=1 is set by SealCase right after a successful seal. It tells
+  // us to retry the photo + audio fetch once after a short delay,
+  // since the upload happens just before the seal returns and the
+  // server has a small replication lag before the metadata rows are
+  // queryable. Without this retry, the user sees an empty photo grid
+  // even though the upload succeeded.
+  const freshFromSeal = searchParams.get('fresh') === '1';
   const navigate = useNavigate();
   const cases = useHauntStore((s) => s.cases);
   const currentUser = useHauntStore((s) => s.user);
@@ -235,7 +243,8 @@ export default function CaseView() {
   useEffect(() => {
     if (!id || isSample) return;
     let cancelled = false;
-    (async () => {
+    let retryTimer: number | null = null;
+    const load = async () => {
       try {
         const byLog = await fetchPhotosForCase(id);
         if (cancelled) return;
@@ -249,17 +258,38 @@ export default function CaseView() {
       } catch (e) {
         console.warn('[CaseView] photo fetch failed:', e);
       }
+    };
+    (async () => {
+      await load();
+      // Step 42: when arriving fresh from a seal, the photo upload
+      // may have JUST completed and the database row may not be
+      // queryable for a moment. Retry once after 2s, then clear the
+      // ?fresh=1 query param so a manual refresh doesn't double-fetch.
+      if (freshFromSeal) {
+        retryTimer = window.setTimeout(async () => {
+          await load();
+          if (!cancelled) {
+            // Clean up the URL param.
+            const sp = new URLSearchParams(searchParams);
+            sp.delete('fresh');
+            setSearchParams(sp, { replace: true });
+          }
+        }, 2000);
+      }
     })();
     return () => {
       cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Step 22: load audio clips for this case.
   useEffect(() => {
     if (!id || isSample) return;
     let cancelled = false;
-    (async () => {
+    let retryTimer: number | null = null;
+    const load = async () => {
       try {
         const byLog = await fetchAudioForCase(id);
         if (cancelled) return;
@@ -273,10 +303,20 @@ export default function CaseView() {
       } catch (e) {
         console.warn('[CaseView] audio fetch failed:', e);
       }
+    };
+    (async () => {
+      await load();
+      if (freshFromSeal) {
+        retryTimer = window.setTimeout(() => {
+          load();
+        }, 2000);
+      }
     })();
     return () => {
       cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Step 24: hydrate investigation parent if this case is linked to one.
@@ -1341,17 +1381,23 @@ function PhotoGrid({
   canAddMore?: boolean;
   onAddMore?: () => void;
 }) {
+  // Don't render the section at all when there's nothing to show and
+  // no ability to add — keeps the case file uncluttered.
+  if (photos.length === 0 && !canAddMore) return null;
   return (
-    <div className="mt-3 grid grid-cols-4 gap-2 max-w-md">
+    <div className="mt-3 grid grid-cols-3 md:grid-cols-4 gap-2 max-w-md">
       {photos.map((p, idx) => {
         const url = signedUrls.get(p.storage_path);
         if (!url) {
           return (
             <div
               key={p.id}
-              className="aspect-square rounded-lg bg-white/5 border border-white/10 flex items-center justify-center"
+              className="aspect-square rounded-lg bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-y-1"
             >
-              <Loader2 className="w-4 h-4 animate-spin text-white/30" />
+              <Loader2 className="w-4 h-4 animate-spin text-white/40" />
+              <span className="text-[9px] font-mono tracking-widest text-white/40">
+                LOADING
+              </span>
             </div>
           );
         }
