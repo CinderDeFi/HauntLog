@@ -178,6 +178,8 @@ export type CaseFile = {
   tags?: string[];
   logs: LogEntry[];
   sealed: boolean;
+  /** Step 24: when set, this case is part of a team investigation umbrella. */
+  investigationId?: string;
 };
 
 export type ActiveHunt = {
@@ -196,6 +198,9 @@ export type ActiveHunt = {
   teamId?: string;       // when set, hunt is on behalf of this team
   teamName?: string;     // snapshot for UI display in LiveHunt etc.
   teamSlug?: string;     // snapshot — links to public team page
+  // Step 24: when set, this hunt was launched from an investigation
+  // umbrella. On seal the resulting case auto-links to it.
+  investigationId?: string;
   logs: LogEntry[];
 };
 
@@ -251,6 +256,7 @@ type HauntState = {
     teamId?: string;
     teamName?: string;
     teamSlug?: string;
+    investigationId?: string;
   }) => { hunt: ActiveHunt; venue?: Venue; checkIn?: CheckIn };
 
   addLog: (entry: Omit<LogEntry, 'id'>) => void;
@@ -432,6 +438,7 @@ export const useHauntStore = create<HauntState>()(
           teamId: init.teamId,
           teamName: init.teamName,
           teamSlug: init.teamSlug,
+          investigationId: init.investigationId,
           logs: [],
         };
 
@@ -592,6 +599,21 @@ export const useHauntStore = create<HauntState>()(
 
         if (!result.ok) {
           return { ok: false, error: result.error };
+        }
+
+        // Step 24: if the hunt was launched from an investigation
+        // umbrella, link the new case to it. Non-fatal on failure —
+        // the case still exists; the owner can retroactively link
+        // from the CaseView page if needed.
+        if (h.investigationId) {
+          try {
+            const linkRes = await dataLayer.setCaseInvestigation(id, h.investigationId);
+            if (!linkRes.ok) {
+              console.warn('[sealCase investigation link]', linkRes.error);
+            }
+          } catch (e) {
+            console.warn('[sealCase investigation link error]', e);
+          }
         }
 
         // Step 18: upload any pending photos. Done as a background
