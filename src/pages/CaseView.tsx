@@ -1110,70 +1110,83 @@ export default function CaseView() {
               {sortedLogs.length} {sortedLogs.length === 1 ? 'entry' : 'entries'}
             </div>
           </div>
-          <div className="bg-zinc-900 border border-white/10 rounded-3xl divide-y divide-white/5">
-            {sortedLogs.length === 0 && (
-              <div className="p-6 text-center text-white/40 text-sm">No events were logged.</div>
-            )}
-            {sortedLogs.map((log) => {
-              const chip = equipmentChipColors(log.equipmentId);
-              return (
-              <div key={log.id} className="flex items-stretch gap-0">
-                {/* Colored accent bar — equipment-keyed */}
-                <div className={`w-1 shrink-0 ${chip.bar}`} aria-hidden />
-                <div className="px-3 md:px-6 py-3 flex-1 min-w-0">
-                  {/* META ROW: timestamp + chip on the left, edit/star
-                      actions on the right. Always a single horizontal
-                      strip — even on mobile this fits because there's
-                      no long observation text competing for space. */}
-                  <div className="flex items-center gap-2 md:gap-4 mb-2">
-                    <div className="font-mono text-[10px] md:text-xs text-white/40 tabular-nums shrink-0">
-                      {formatTime(log.timestamp)}
-                    </div>
-                    <div className="shrink-0">
-                      <span className={`px-2 py-0.5 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded-md tracking-widest`}>
-                        {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
-                      </span>
-                    </div>
-                    {/* Right-side actions: edit + star (owner only, not sample) */}
-                    <div className="flex items-center gap-0 shrink-0 ml-auto">
-                      {isCaseOwner && !isSample && editingLogId !== log.id && (
-                        <button
-                          type="button"
-                          onClick={() => handleStartEdit(log)}
-                          aria-label="Edit this log entry"
-                          title="Edit"
-                          className="p-1 rounded-md text-white/20 hover:text-white/80 hover:bg-white/5 transition-colors"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      {isCaseOwner && !isSample ? (
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStar(log.id, !!log.starred)}
-                          aria-label={log.starred ? 'Unstar this log entry' : 'Star this log entry'}
-                          title={log.starred ? 'Unstar' : 'Mark as highlight'}
-                          className={`p-1 rounded-md transition-colors ${
-                            log.starred
-                              ? 'text-yellow-400 hover:bg-yellow-400/10'
-                              : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
-                          }`}
-                        >
-                          <Star
-                            className={`w-4 h-4 ${log.starred ? 'fill-yellow-400' : ''}`}
-                          />
-                        </button>
-                      ) : (
-                        log.starred && (
-                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                        )
-                      )}
-                    </div>
-                  </div>
+          {sortedLogs.length === 0 ? (
+            <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 text-center text-white/40 text-sm">
+              No events were logged.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {sortedLogs.map((log, logIdx) => {
+                const chip = equipmentChipColors(log.equipmentId);
+                const entryNumber = String(logIdx + 1).padStart(3, '0');
+                const logPhotos = photosByLog.get(log.id) ?? [];
+                const logAudio = audioByLog.get(log.id) ?? [];
+                return (
+                <article
+                  key={log.id}
+                  className="relative bg-gradient-to-br from-zinc-900 to-black border border-white/10 rounded-2xl overflow-hidden hl-evidence-card"
+                >
+                  {/* Left accent bar — equipment-keyed color */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${chip.bar}`} aria-hidden />
 
-                  {/* CONTENT: observation + optional note + data display.
-                      Now full-width since metadata is on its own row above. */}
-                  <div className="min-w-0">
+                  <div className="pl-5 md:pl-7 pr-4 md:pr-6 py-5 md:py-6">
+                    {/* HEADER: entry number on left, timestamp on right */}
+                    <div className="flex items-center justify-between mb-3 gap-3">
+                      <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                        <div className="font-mono text-[10px] md:text-xs tracking-widest text-white/40 shrink-0">
+                          // ENTRY {entryNumber}
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded-md tracking-widest shrink-0`}
+                        >
+                          {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
+                        </span>
+                        {log.starred && (
+                          <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400 shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div className="font-mono text-[10px] md:text-xs text-white/40 tabular-nums">
+                          {formatTime(log.timestamp)}
+                        </div>
+                        {isCaseOwner && !isSample && editingLogId !== log.id && (
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(log)}
+                            aria-label="Edit this log entry"
+                            title="Edit"
+                            className="ml-1 p-1 rounded-md text-white/20 hover:text-white/80 hover:bg-white/5 transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isCaseOwner && !isSample && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStar(log.id, !!log.starred)}
+                            aria-label={
+                              log.starred ? 'Unstar this log entry' : 'Star this log entry'
+                            }
+                            title={log.starred ? 'Unstar' : 'Mark as highlight'}
+                            className={`p-1 rounded-md transition-colors ${
+                              log.starred
+                                ? 'text-yellow-400 hover:bg-yellow-400/10'
+                                : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
+                            }`}
+                          >
+                            <Star
+                              className={`w-4 h-4 ${log.starred ? 'fill-yellow-400' : ''}`}
+                            />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Hairline divider under the meta row */}
+                    <div className="h-px bg-white/10 mb-4" />
+
+                    {/* OBSERVATION — the testimony itself.
+                        Large serif italic. This is the moment. */}
                     {editingLogId === log.id ? (
                       <div className="space-y-2">
                         <div>
@@ -1231,52 +1244,79 @@ export default function CaseView() {
                       </div>
                     ) : (
                       <>
-                        <p className="text-white break-words">{log.observation}</p>
+                        <p
+                          className="font-serif italic text-lg md:text-2xl leading-snug text-white break-words"
+                          style={{ fontFamily: '"Cormorant Garamond", "Iowan Old Style", "Apple Garamond", Georgia, serif' }}
+                        >
+                          {log.observation}
+                        </p>
                         {log.note && (
-                          <p className="text-white/50 text-sm mt-0.5 break-words">{log.note}</p>
+                          <p className="text-sm md:text-base text-white/55 mt-3 break-words flex gap-x-2">
+                            <span className="text-haunt-red shrink-0 select-none">→</span>
+                            <span>{log.note}</span>
+                          </p>
                         )}
                       </>
                     )}
+
                     {log.data && (
-                      <div className="mt-1.5">
+                      <div className="mt-3">
                         <EquipmentDataDisplay equipmentId={log.equipmentId} data={log.data} />
                       </div>
                     )}
-                    {/* Step 18: photo grid */}
-                    {(isCaseOwner || (photosByLog.get(log.id) ?? []).length > 0) && (
-                      <PhotoGrid
-                        photos={photosByLog.get(log.id) ?? []}
-                        signedUrls={signedUrls}
-                        viewerCanDelete={(p) => authUser?.id === p.owner_id}
-                        onOpen={(idx) => openLightboxForLog(log.id, idx)}
-                        onDelete={handleDeletePhoto}
-                        canAddMore={
-                          isCaseOwner &&
-                          (photosByLog.get(log.id) ?? []).length < MAX_PHOTOS_PER_LOG
-                        }
-                        onAddMore={() => setAddPhotosLogId(log.id)}
-                      />
+
+                    {/* PHOTOS — labeled EXHIBIT A, B, C... */}
+                    {(isCaseOwner || logPhotos.length > 0) && (
+                      <div className="mt-5">
+                        {logPhotos.length > 0 && (
+                          <div className="text-[10px] font-mono text-white/40 tracking-widest mb-2">
+                            // EXHIBITS · {logPhotos.length}
+                          </div>
+                        )}
+                        <PhotoGrid
+                          photos={logPhotos}
+                          signedUrls={signedUrls}
+                          viewerCanDelete={(p) => authUser?.id === p.owner_id}
+                          onOpen={(idx) => openLightboxForLog(log.id, idx)}
+                          onDelete={handleDeletePhoto}
+                          canAddMore={
+                            isCaseOwner && logPhotos.length < MAX_PHOTOS_PER_LOG
+                          }
+                          onAddMore={() => setAddPhotosLogId(log.id)}
+                        />
+                      </div>
                     )}
-                    {/* Step 22: audio attachments */}
-                    <AudioList
-                      audios={audioByLog.get(log.id) ?? []}
-                      signedUrls={signedAudioUrls}
-                      isOwner={isCaseOwner}
-                      isSample={isSample}
-                      onDelete={handleDeleteAudio}
-                      canAddMore={
-                        isCaseOwner &&
-                        !isSample &&
-                        (audioByLog.get(log.id) ?? []).length < MAX_AUDIO_PER_LOG
-                      }
-                      onAddMore={() => setAddAudioLogId(log.id)}
-                    />
+
+                    {/* AUDIO — separate section with its own dignity */}
+                    {(logAudio.length > 0 ||
+                      (isCaseOwner && !isSample && logAudio.length < MAX_AUDIO_PER_LOG)) && (
+                      <div className="mt-5">
+                        {logAudio.length > 0 && (
+                          <div className="text-[10px] font-mono text-white/40 tracking-widest mb-2">
+                            // AUDIO CAPTURE · {logAudio.length}
+                          </div>
+                        )}
+                        <AudioList
+                          audios={logAudio}
+                          signedUrls={signedAudioUrls}
+                          isOwner={isCaseOwner}
+                          isSample={isSample}
+                          onDelete={handleDeleteAudio}
+                          canAddMore={
+                            isCaseOwner &&
+                            !isSample &&
+                            logAudio.length < MAX_AUDIO_PER_LOG
+                          }
+                          onAddMore={() => setAddAudioLogId(log.id)}
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
-              );
-            })}
-          </div>
+                </article>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="bg-zinc-900/40 border border-dashed border-white/10 rounded-3xl p-6 text-center text-white/40 text-sm">
@@ -1390,18 +1430,25 @@ function PhotoGrid({
   canAddMore?: boolean;
   onAddMore?: () => void;
 }) {
-  // Don't render the section at all when there's nothing to show and
-  // no ability to add — keeps the case file uncluttered.
   if (photos.length === 0 && !canAddMore) return null;
+  // EXHIBIT A, B, C... for the first 26. Beyond that fall through to
+  // EXHIBIT AA, AB... but in practice MAX_PHOTOS_PER_LOG caps at ~6.
+  const exhibitLabel = (idx: number) => {
+    if (idx < 26) return String.fromCharCode(65 + idx);
+    return `${String.fromCharCode(65 + Math.floor(idx / 26) - 1)}${String.fromCharCode(
+      65 + (idx % 26)
+    )}`;
+  };
   return (
-    <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
       {photos.map((p, idx) => {
         const url = signedUrls.get(p.storage_path);
+        const label = `EXHIBIT ${exhibitLabel(idx)}`;
         if (!url) {
           return (
             <div
               key={p.id}
-              className="aspect-square rounded-lg bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-y-1"
+              className="aspect-square rounded-xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-y-1"
             >
               <Loader2 className="w-4 h-4 animate-spin text-white/40" />
               <span className="text-[9px] font-mono tracking-widest text-white/40">
@@ -1415,9 +1462,16 @@ function PhotoGrid({
             <button
               type="button"
               onClick={() => onOpen(idx)}
-              className="aspect-square w-full rounded-lg overflow-hidden border border-white/10 bg-zinc-900 hover:border-white/30 transition-colors"
+              className="block aspect-square w-full rounded-xl overflow-hidden border border-white/10 bg-zinc-900 hover:border-haunt-red/50 transition-colors relative"
             >
               <img src={url} alt="" className="w-full h-full object-cover" />
+              {/* Caption strip at the bottom of each exhibit — gives
+                  the photo dossier weight without dominating it. */}
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1.5">
+                <div className="text-[9px] font-mono tracking-widest text-white/80">
+                  {label}
+                </div>
+              </div>
             </button>
             {viewerCanDelete(p) && (
               <button
@@ -1427,7 +1481,7 @@ function PhotoGrid({
                   onDelete(p);
                 }}
                 aria-label="Delete photo"
-                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 hover:bg-red-600 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 hover:bg-red-600 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
               >
                 <Trash2 className="w-3 h-3" />
               </button>
@@ -1440,10 +1494,10 @@ function PhotoGrid({
           type="button"
           onClick={onAddMore}
           aria-label="Add more photos"
-          className="aspect-square rounded-lg border-2 border-dashed border-white/20 bg-zinc-900/30 hover:border-white/40 hover:text-white text-white/50 flex flex-col items-center justify-center gap-y-0.5 transition-colors"
+          className="aspect-square rounded-xl border-2 border-dashed border-white/15 bg-zinc-900/40 hover:border-haunt-red/50 hover:text-haunt-red text-white/40 flex flex-col items-center justify-center gap-y-1 transition-colors"
         >
-          <Plus className="w-4 h-4" />
-          <span className="text-[9px] font-mono tracking-widest">ADD</span>
+          <Plus className="w-5 h-5" />
+          <span className="text-[9px] font-mono tracking-widest">ADD EXHIBIT</span>
         </button>
       )}
     </div>
