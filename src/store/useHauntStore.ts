@@ -712,13 +712,13 @@ export const useHauntStore = create<HauntState>()(
         };
 
         // Also deactivate the check-in for this hunt on the server.
-        // Find the check-in id by huntId from local state.
-        const localCheckIn = state.checkIns.find((ci) => ci.huntId === h.id);
-        if (localCheckIn) {
-          dataLayer.deactivateCheckIn(localCheckIn.id).catch(() => {
-            /* best-effort: stale check-ins auto-expire anyway */
-          });
-        }
+        // Use the deterministic hunt_id (text) rather than the row id
+        // — the row id may still be a local placeholder if the async
+        // insert hasn't returned yet, so deactivating by id would silently
+        // no-op and leave the row showing as active. hunt_id is stable.
+        dataLayer.deactivateCheckInByHuntId(h.id).catch(() => {
+          /* best-effort: stale check-ins auto-expire anyway */
+        });
 
         set((s) => ({
           cases: [sealed, ...s.cases.filter((c) => c.id !== id)],
@@ -734,14 +734,12 @@ export const useHauntStore = create<HauntState>()(
       cancelHunt: () => {
         const state = get();
         const h = state.activeHunt;
-        // Best-effort: deactivate the server check-in too.
+        // Best-effort: deactivate the server check-in too. Use hunt_id
+        // (deterministic) rather than row id to dodge any async-insert race.
         if (h) {
-          const localCheckIn = state.checkIns.find((ci) => ci.huntId === h.id);
-          if (localCheckIn) {
-            dataLayer.deactivateCheckIn(localCheckIn.id).catch(() => {
-              /* ignore */
-            });
-          }
+          dataLayer.deactivateCheckInByHuntId(h.id).catch(() => {
+            /* ignore */
+          });
         }
         set((s) => ({
           activeHunt: null,
