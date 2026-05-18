@@ -5,7 +5,7 @@ import {
   makeThumbnailUrl,
   MAX_PHOTOS_PER_LOG,
 } from '../lib/imageProcess';
-import { Camera, X, AlertCircle } from 'lucide-react';
+import { Camera, ImagePlus, X, AlertCircle } from 'lucide-react';
 
 /**
  * Pending photo: a File that hasn't been uploaded yet. Holds an
@@ -27,7 +27,11 @@ type Props = {
 export default function PhotoUploadField({ photos, onChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
+  // Separate input for direct camera capture. Needs its own element
+  // because the `capture` attribute can't be toggled per-click reliably
+  // across Android/iOS browsers — easier to render two inputs and pick.
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   // Revoke thumbnail URLs on unmount to avoid leaking memory.
   useEffect(() => {
@@ -124,29 +128,64 @@ export default function PhotoUploadField({ photos, onChange }: Props) {
         ))}
 
         {remaining > 0 && (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={onDrop}
-            className={`w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-y-1 transition-colors ${
-              dragOver
-                ? 'border-haunt-red bg-haunt-red/10 text-haunt-red'
-                : 'border-white/20 bg-zinc-900/50 text-white/50 hover:border-white/40 hover:text-white/70'
-            }`}
-          >
-            <Camera className="w-4 h-4" />
-            <span className="text-[9px] font-mono tracking-widest">ADD</span>
-          </button>
+          <>
+            {/* Direct camera button — opens the rear camera on mobile
+                in one tap. On desktop browsers, `capture` is ignored
+                and this falls back to the same file picker as LIBRARY,
+                which is fine. */}
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="w-20 h-20 rounded-xl border-2 border-dashed border-haunt-red/40 bg-haunt-red/5 text-haunt-red hover:bg-haunt-red/10 flex flex-col items-center justify-center gap-y-1 transition-colors"
+              title="Take a photo with the camera"
+            >
+              <Camera className="w-5 h-5" />
+              <span className="text-[9px] font-mono tracking-widest">CAMERA</span>
+            </button>
+
+            {/* Library / file picker button — for already-captured
+                images, including drag-and-drop on desktop. */}
+            <button
+              type="button"
+              onClick={() => libraryInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
+              className={`w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-y-1 transition-colors ${
+                dragOver
+                  ? 'border-haunt-red bg-haunt-red/10 text-haunt-red'
+                  : 'border-white/20 bg-zinc-900/50 text-white/50 hover:border-white/40 hover:text-white/70'
+              }`}
+              title="Pick photos from your library"
+            >
+              <ImagePlus className="w-5 h-5" />
+              <span className="text-[9px] font-mono tracking-widest">LIBRARY</span>
+            </button>
+          </>
         )}
       </div>
 
+      {/* Hidden input — camera capture. `capture="environment"` requests
+          the rear camera on mobile. Browsers that don't support capture
+          ignore it and fall back to standard file selection. */}
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) addFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+
+      {/* Hidden input — library file picker. Multiple allowed. */}
+      <input
+        ref={libraryInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
         multiple
