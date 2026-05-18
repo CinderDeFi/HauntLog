@@ -14,6 +14,7 @@ import {
   Users,
   Search,
   Building2,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '../lib/useAuth';
 import { fetchMyPendingInvites } from '../lib/teamActions';
@@ -33,7 +34,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const { user } = useHauntStore();
   const activeHunt = useHauntStore((s) => s.activeHunt);
-  const { signOut, profile, user: authUser } = useAuth();
+  const { signOut, profile, user: authUser, setFieldMode } = useAuth();
   const isActive = (match: string) => location.pathname.includes(match);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -291,6 +292,30 @@ export default function Navbar() {
                 >
                   <UserIcon className="w-4 h-4 text-white/60" />
                   View public profile
+                </button>
+                {/* Field Mode toggle — for low-light investigations.
+                    Dim amber accent, dampened pulses, warmer surfaces. */}
+                <button
+                  onClick={() => setFieldMode(!profile?.field_mode)}
+                  className="w-full px-4 py-3 text-left text-sm flex items-center gap-x-3 hover:bg-white/5 border-t border-white/10"
+                  title="Dim accent + dampened motion for night investigations"
+                >
+                  <Moon
+                    className={`w-4 h-4 ${profile?.field_mode ? 'text-haunt-red' : 'text-white/60'}`}
+                  />
+                  <span className="flex-1">Field Mode</span>
+                  {/* Pill-style switch */}
+                  <span
+                    className={`relative inline-block w-9 h-5 rounded-full transition-colors ${
+                      profile?.field_mode ? 'bg-haunt-red' : 'bg-white/10'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                        profile?.field_mode ? 'translate-x-4' : ''
+                      }`}
+                    />
+                  </span>
                 </button>
                 <button
                   onClick={handleSignOut}
