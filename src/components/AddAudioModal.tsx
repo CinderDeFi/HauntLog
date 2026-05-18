@@ -103,7 +103,7 @@ export default function AddAudioModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[1300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-zinc-900 border border-white/10 rounded-3xl w-full max-w-lg my-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
