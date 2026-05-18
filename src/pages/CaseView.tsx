@@ -10,15 +10,20 @@ import { EquipmentDataDisplay } from '../components/EquipmentDataInput';
 import Comments from '../components/Comments';
 import PhotoLightbox from '../components/PhotoLightbox';
 import AddPhotosModal from '../components/AddPhotosModal';
+import AddAudioModal from '../components/AddAudioModal';
 import {
   fetchCaseById,
   fetchPhotosForCase,
   getSignedPhotoUrls,
   deleteLogPhoto,
   updatePhotoCaption,
+  fetchAudioForCase,
+  getSignedAudioUrls,
+  deleteLogAudio,
   type LogEntryPhotoRow,
+  type LogEntryAudioRow,
 } from '../lib/dataLayer';
-import { MAX_PHOTOS_PER_LOG } from '../lib/imageProcess';
+import { MAX_PHOTOS_PER_LOG, MAX_AUDIO_PER_LOG } from '../lib/imageProcess';
 import { SAMPLE_CASE, isSampleCaseId } from '../lib/sampleCase';
 import { equipmentChipColors } from '../lib/equipmentColors';
 import { supabase } from '../lib/supabase';
@@ -42,6 +47,7 @@ import {
   AlertCircle,
   Plus,
   Sparkles,
+  Mic2,
 } from 'lucide-react';
 
 function formatDateTime(iso: string) {
@@ -177,6 +183,15 @@ export default function CaseView() {
   // currently showing the AddPhotosModal.
   const [addPhotosLogId, setAddPhotosLogId] = useState<string | null>(null);
 
+  // Step 22: audio attachments. Same shape as photo state.
+  const [audioByLog, setAudioByLog] = useState<Map<string, LogEntryAudioRow[]>>(
+    new Map()
+  );
+  const [signedAudioUrls, setSignedAudioUrls] = useState<Map<string, string>>(
+    new Map()
+  );
+  const [addAudioLogId, setAddAudioLogId] = useState<string | null>(null);
+
   // Is the viewer the owner of this case? Used to gate "add photos"
   // and other owner-only affordances.
   const isCaseOwner = !!authUser && caseOwnerProfileId === authUser.id;
@@ -210,6 +225,30 @@ export default function CaseView() {
         }
       } catch (e) {
         console.warn('[CaseView] photo fetch failed:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  // Step 22: load audio clips for this case.
+  useEffect(() => {
+    if (!id || isSample) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const byLog = await fetchAudioForCase(id);
+        if (cancelled) return;
+        setAudioByLog(byLog);
+        const allPaths: string[] = [];
+        byLog.forEach((arr) => arr.forEach((a) => allPaths.push(a.storage_path)));
+        if (allPaths.length > 0) {
+          const urls = await getSignedAudioUrls(allPaths);
+          if (!cancelled) setSignedAudioUrls(urls);
+        }
+      } catch (e) {
+        console.warn('[CaseView] audio fetch failed:', e);
       }
     })();
     return () => {
@@ -311,6 +350,43 @@ export default function CaseView() {
     } catch (e) {
       console.warn('[CaseView] re-sign after upload failed:', e);
     }
+  };
+
+  // ------- Audio handlers (step 22) -------
+  const handleAudioUploaded = async (newAudio: LogEntryAudioRow) => {
+    setAudioByLog((prev) => {
+      const next = new Map(prev);
+      const arr = next.get(newAudio.log_entry_id) ?? [];
+      next.set(newAudio.log_entry_id, [...arr, newAudio]);
+      return next;
+    });
+    try {
+      const urls = await getSignedAudioUrls([newAudio.storage_path]);
+      setSignedAudioUrls((prev) => {
+        const next = new Map(prev);
+        urls.forEach((u, k) => next.set(k, u));
+        return next;
+      });
+    } catch (e) {
+      console.warn('[CaseView] re-sign audio after upload failed:', e);
+    }
+  };
+
+  const handleDeleteAudio = async (audio: LogEntryAudioRow) => {
+    if (!confirm('Remove this audio clip?')) return;
+    const res = await deleteLogAudio(audio);
+    if (!res.ok) {
+      alert(res.error);
+      return;
+    }
+    setAudioByLog((prev) => {
+      const next = new Map(prev);
+      const arr = next.get(audio.log_entry_id) ?? [];
+      const filtered = arr.filter((a) => a.id !== audio.id);
+      if (filtered.length > 0) next.set(audio.log_entry_id, filtered);
+      else next.delete(audio.log_entry_id);
+      return next;
+    });
   };
 
   // Close the visibility menu when clicking outside.
@@ -803,6 +879,20 @@ export default function CaseView() {
                         onAddMore={() => setAddPhotosLogId(log.id)}
                       />
                     )}
+                    {/* Step 22: audio attachments */}
+                    <AudioList
+                      audios={audioByLog.get(log.id) ?? []}
+                      signedUrls={signedAudioUrls}
+                      isOwner={isCaseOwner}
+                      isSample={isSample}
+                      onDelete={handleDeleteAudio}
+                      canAddMore={
+                        isCaseOwner &&
+                        !isSample &&
+                        (audioByLog.get(log.id) ?? []).length < MAX_AUDIO_PER_LOG
+                      }
+                      onAddMore={() => setAddAudioLogId(log.id)}
+                    />
                   </div>
                 </div>
                 );
@@ -828,62 +918,80 @@ export default function CaseView() {
             {sortedLogs.map((log) => {
               const chip = equipmentChipColors(log.equipmentId);
               return (
-              <div key={log.id} className="flex items-start gap-4 px-4 md:px-6 py-3">
-                <div className="font-mono text-xs text-white/40 w-20 pt-1 shrink-0 tabular-nums">
-                  {formatTime(log.timestamp)}
-                </div>
-                <div className="shrink-0">
-                  <span className={`px-2 py-1 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded-md tracking-widest`}>
-                    {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white break-words">{log.observation}</p>
-                  {log.note && (
-                    <p className="text-white/50 text-sm mt-0.5 break-words">{log.note}</p>
-                  )}
-                  {log.data && (
-                    <div className="mt-1.5">
-                      <EquipmentDataDisplay equipmentId={log.equipmentId} data={log.data} />
-                    </div>
-                  )}
-                  {/* Step 18: photo grid */}
-                  {(isCaseOwner || (photosByLog.get(log.id) ?? []).length > 0) && (
-                    <PhotoGrid
-                      photos={photosByLog.get(log.id) ?? []}
-                      signedUrls={signedUrls}
-                      viewerCanDelete={(p) => authUser?.id === p.owner_id}
-                      onOpen={(idx) => openLightboxForLog(log.id, idx)}
-                      onDelete={handleDeletePhoto}
+              <div key={log.id} className="flex items-stretch gap-0">
+                {/* Colored accent bar — equipment-keyed */}
+                <div className={`w-1 shrink-0 ${chip.bar}`} aria-hidden />
+                <div className="flex items-start gap-4 px-4 md:px-6 py-3 flex-1 min-w-0">
+                  <div className="font-mono text-xs text-white/40 w-20 pt-1 shrink-0 tabular-nums">
+                    {formatTime(log.timestamp)}
+                  </div>
+                  <div className="shrink-0">
+                    <span className={`px-2 py-1 ${chip.bg} ${chip.text} border ${chip.border} text-[10px] font-mono rounded-md tracking-widest`}>
+                      {equipmentAbbr(log.equipmentId, caseFile.customEquipment)}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white break-words">{log.observation}</p>
+                    {log.note && (
+                      <p className="text-white/50 text-sm mt-0.5 break-words">{log.note}</p>
+                    )}
+                    {log.data && (
+                      <div className="mt-1.5">
+                        <EquipmentDataDisplay equipmentId={log.equipmentId} data={log.data} />
+                      </div>
+                    )}
+                    {/* Step 18: photo grid */}
+                    {(isCaseOwner || (photosByLog.get(log.id) ?? []).length > 0) && (
+                      <PhotoGrid
+                        photos={photosByLog.get(log.id) ?? []}
+                        signedUrls={signedUrls}
+                        viewerCanDelete={(p) => authUser?.id === p.owner_id}
+                        onOpen={(idx) => openLightboxForLog(log.id, idx)}
+                        onDelete={handleDeletePhoto}
+                        canAddMore={
+                          isCaseOwner &&
+                          (photosByLog.get(log.id) ?? []).length < MAX_PHOTOS_PER_LOG
+                        }
+                        onAddMore={() => setAddPhotosLogId(log.id)}
+                      />
+                    )}
+                    {/* Step 22: audio attachments */}
+                    <AudioList
+                      audios={audioByLog.get(log.id) ?? []}
+                      signedUrls={signedAudioUrls}
+                      isOwner={isCaseOwner}
+                      isSample={isSample}
+                      onDelete={handleDeleteAudio}
                       canAddMore={
                         isCaseOwner &&
-                        (photosByLog.get(log.id) ?? []).length < MAX_PHOTOS_PER_LOG
+                        !isSample &&
+                        (audioByLog.get(log.id) ?? []).length < MAX_AUDIO_PER_LOG
                       }
-                      onAddMore={() => setAddPhotosLogId(log.id)}
+                      onAddMore={() => setAddAudioLogId(log.id)}
                     />
+                  </div>
+                  {isCaseOwner && !isSample ? (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStar(log.id, !!log.starred)}
+                      aria-label={log.starred ? 'Unstar this log entry' : 'Star this log entry'}
+                      title={log.starred ? 'Unstar' : 'Mark as highlight'}
+                      className={`shrink-0 mt-1 p-1 rounded-md transition-colors ${
+                        log.starred
+                          ? 'text-yellow-400 hover:bg-yellow-400/10'
+                          : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
+                      }`}
+                    >
+                      <Star
+                        className={`w-4 h-4 ${log.starred ? 'fill-yellow-400' : ''}`}
+                      />
+                    </button>
+                  ) : (
+                    log.starred && (
+                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 shrink-0 mt-1" />
+                    )
                   )}
                 </div>
-                {isCaseOwner && !isSample ? (
-                  <button
-                    type="button"
-                    onClick={() => handleToggleStar(log.id, !!log.starred)}
-                    aria-label={log.starred ? 'Unstar this log entry' : 'Star this log entry'}
-                    title={log.starred ? 'Unstar' : 'Mark as highlight'}
-                    className={`shrink-0 mt-1 p-1 rounded-md transition-colors ${
-                      log.starred
-                        ? 'text-yellow-400 hover:bg-yellow-400/10'
-                        : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
-                    }`}
-                  >
-                    <Star
-                      className={`w-4 h-4 ${log.starred ? 'fill-yellow-400' : ''}`}
-                    />
-                  </button>
-                ) : (
-                  log.starred && (
-                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 shrink-0 mt-1" />
-                  )
-                )}
               </div>
               );
             })}
@@ -891,9 +999,7 @@ export default function CaseView() {
         </div>
 
         <div className="bg-zinc-900/40 border border-dashed border-white/10 rounded-3xl p-6 text-center text-white/40 text-sm">
-          Video evidence attachments coming in a later release. <br />
-          Once added, you'll be able to link footage from your camera review to specific log
-          entries.
+          Video evidence attachments coming in a later release.
         </div>
 
         {!isSample && (
@@ -963,6 +1069,18 @@ export default function CaseView() {
           logEntryId={addPhotosLogId}
           existingPhotoCount={(photosByLog.get(addPhotosLogId) ?? []).length}
           onUploaded={handlePhotosUploaded}
+        />
+      )}
+
+      {/* Step 22: add-audio modal */}
+      {addAudioLogId && id && (
+        <AddAudioModal
+          open={true}
+          onClose={() => setAddAudioLogId(null)}
+          caseId={id}
+          logEntryId={addAudioLogId}
+          existingAudioCount={(audioByLog.get(addAudioLogId) ?? []).length}
+          onUploaded={handleAudioUploaded}
         />
       )}
     </div>
@@ -1039,6 +1157,86 @@ function PhotoGrid({
         >
           <Plus className="w-4 h-4" />
           <span className="text-[9px] font-mono tracking-widest">ADD</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function formatDur(sec: number | null | undefined): string {
+  if (sec == null || !Number.isFinite(sec) || sec <= 0) return '';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function AudioList({
+  audios,
+  signedUrls,
+  isOwner,
+  isSample,
+  onDelete,
+  canAddMore,
+  onAddMore,
+}: {
+  audios: LogEntryAudioRow[];
+  signedUrls: Map<string, string>;
+  isOwner: boolean;
+  isSample: boolean;
+  onDelete: (a: LogEntryAudioRow) => void;
+  canAddMore: boolean;
+  onAddMore: () => void;
+}) {
+  if (audios.length === 0 && !canAddMore) return null;
+  return (
+    <div className="mt-3 space-y-2 max-w-xl">
+      {audios.map((a) => {
+        const url = signedUrls.get(a.storage_path);
+        return (
+          <div
+            key={a.id}
+            className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3"
+          >
+            <div className="flex items-center gap-x-2 mb-2">
+              <Mic2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <div className="text-[10px] font-mono text-amber-300/80 tracking-widest truncate flex-1">
+                AUDIO {formatDur(a.duration_seconds) && `· ${formatDur(a.duration_seconds)}`}
+              </div>
+              {isOwner && !isSample && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(a)}
+                  className="text-white/40 hover:text-red-400 p-1 rounded-md hover:bg-white/5"
+                  aria-label="Delete audio clip"
+                  title="Delete"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {url ? (
+              <audio controls src={url} className="w-full" style={{ height: 36 }} />
+            ) : (
+              <div className="text-xs text-white/40 inline-flex items-center gap-x-2">
+                <Loader2 className="w-3 h-3 animate-spin" /> Loading audio…
+              </div>
+            )}
+            {a.caption && (
+              <div className="text-xs text-white/60 italic mt-1.5 break-words">
+                {a.caption}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {canAddMore && (
+        <button
+          type="button"
+          onClick={onAddMore}
+          className="w-full rounded-xl border-2 border-dashed border-white/20 bg-zinc-900/30 hover:border-amber-500/60 hover:text-white text-white/50 py-2.5 flex items-center justify-center gap-x-2 text-xs font-mono tracking-widest transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          ADD AUDIO
         </button>
       )}
     </div>
