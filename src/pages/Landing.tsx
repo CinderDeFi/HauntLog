@@ -260,43 +260,43 @@ export default function Landing() {
               <h2 className="text-3xl md:text-5xl font-medium mb-4 md:mb-6 leading-tight">Real events.<br />Real time stamps.</h2>
               <p className="text-white/70 max-w-md text-sm md:text-base">No fake spikes. No simulated voices. Just the moments your gear actually reacted — all locked into a sealed file the community can vote on.</p>
               
-              <Link to="/case/X4M-PT9" className="inline-flex mt-6 md:mt-8 items-center gap-x-2 md:gap-x-3 text-haunt-red hover:text-red-400 text-sm md:text-base">
-                SEE THE FULL APP
+              <Link to="/case/sample" className="inline-flex mt-6 md:mt-8 items-center gap-x-2 md:gap-x-3 text-haunt-red hover:text-red-400 text-sm md:text-base">
+                SEE THE FULL SAMPLE CASE
                 <span className="text-2xl md:text-3xl leading-none">→</span>
               </Link>
             </div>
 
-            {/* Sample case card */}
-            <div className="flex-1 w-full bg-zinc-900 border border-white/10 rounded-2xl md:rounded-3xl p-5 md:p-8 max-w-lg">
+            {/* Sample case card — clickable too */}
+            <Link to="/case/sample" className="flex-1 w-full bg-zinc-900 border border-white/10 rounded-2xl md:rounded-3xl p-5 md:p-8 max-w-lg hover:border-haunt-red/40 hover:bg-zinc-900/80 transition-all group">
               <div className="flex justify-between items-center mb-4 md:mb-6 gap-2">
                 <div className="font-mono text-[10px] md:text-sm bg-white/10 px-3 md:px-4 py-1 rounded-xl md:rounded-2xl">CASE FILE · SEALED</div>
-                <div className="text-[10px] md:text-xs text-white/40 shrink-0">#X4M-PT9</div>
+                <div className="text-[10px] md:text-xs text-white/40 shrink-0">#SAMPLE</div>
               </div>
               
               <div className="flex items-baseline gap-x-2 md:gap-x-3 mb-3 md:mb-4">
                 <span className="text-3xl md:text-5xl">★</span>
                 <span className="text-2xl md:text-4xl font-medium">CLASS III</span>
               </div>
-              <h3 className="text-xl md:text-3xl font-medium">The whispering tenant</h3>
-              <p className="text-white/60 text-xs md:text-base mt-1">OLD LYON THEATRE · STAGE LEFT · MAY 15</p>
+              <h3 className="text-xl md:text-3xl font-medium group-hover:text-haunt-red transition-colors">The whispering tenant</h3>
+              <p className="text-white/60 text-xs md:text-base mt-1">OLD LYON THEATRE · STAGE LEFT</p>
 
               <div className="mt-6 md:mt-8 space-y-4 md:space-y-6">
                 <div className="flex gap-x-3 md:gap-x-4 items-baseline">
-                  <div className="w-14 md:w-20 font-mono text-[10px] md:text-xs text-white/40 shrink-0">02:14</div>
+                  <div className="w-14 md:w-20 font-mono text-[10px] md:text-xs text-white/40 shrink-0">22:14</div>
                   <div className="flex-1 min-w-0 text-sm md:text-base">
                     <span className="px-2 md:px-3 py-0.5 md:py-1 bg-purple-500/10 text-purple-400 text-[10px] md:text-xs rounded-lg md:rounded-xl">SB7</span>
                     <span className="ml-2 md:ml-4">"don't leave"</span>
                   </div>
                 </div>
                 <div className="flex gap-x-3 md:gap-x-4 items-baseline">
-                  <div className="w-14 md:w-20 font-mono text-[10px] md:text-xs text-white/40 shrink-0">02:14</div>
+                  <div className="w-14 md:w-20 font-mono text-[10px] md:text-xs text-white/40 shrink-0">22:14</div>
                   <div className="flex-1 min-w-0 text-sm md:text-base">
                     <span className="px-2 md:px-3 py-0.5 md:py-1 bg-red-500/10 text-red-400 text-[10px] md:text-xs rounded-lg md:rounded-xl">K-II</span>
-                    <span className="ml-2 md:ml-4">spike to 4 (red)</span>
+                    <span className="ml-2 md:ml-4">spike to red (5+)</span>
                   </div>
                 </div>
                 <div className="flex gap-x-3 md:gap-x-4 items-baseline">
-                  <div className="w-14 md:w-20 font-mono text-[10px] md:text-xs text-white/40 shrink-0">23:08</div>
+                  <div className="w-14 md:w-20 font-mono text-[10px] md:text-xs text-white/40 shrink-0">22:51</div>
                   <div className="flex-1 min-w-0 text-sm md:text-base">
                     <span className="px-2 md:px-3 py-0.5 md:py-1 bg-cyan-500/10 text-cyan-400 text-[10px] md:text-xs rounded-lg md:rounded-xl">THERMAL</span>
                     <span className="ml-2 md:ml-4">drop -14°F</span>
@@ -309,12 +309,12 @@ export default function Landing() {
                   <div className="w-6 h-6 bg-white/10 rounded-2xl flex items-center justify-center text-[10px] md:text-xs shrink-0">RH</div>
                   <div className="min-w-0">
                     SIGNED · @RILEY.HUNTS<br />
-                    <span className="text-white/40 break-all">HAUNTLOG.APP/X4M-PT9</span>
+                    <span className="text-white/40 break-all">HAUNTLOG.APP/SAMPLE</span>
                   </div>
                 </div>
                 <Star className="w-4 h-4 md:w-5 md:h-5 text-yellow-400 shrink-0" />
               </div>
-            </div>
+            </Link>
           </div>
         </div>
       </section>
