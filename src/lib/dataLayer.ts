@@ -2791,3 +2791,90 @@ export async function setCaseGroup(
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+// ============================================================
+// MULTI-GROUP MEMBERSHIP + LEADER TAGGING (step 26)
+// ============================================================
+
+export type InvestigationGroupMemberRow = {
+  user_id: string;
+  added_at: string;
+  added_by: string;
+  handle: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+};
+
+/**
+ * Create a group within an investigation AND tag members in one
+ * transaction. Used by the HuntStart group step. The caller becomes
+ * the leader and is auto-tagged.
+ */
+export async function createInvestigationGroupWithMembers(
+  investigationId: string,
+  zone: string,
+  memberIds: string[]
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const trimmedZone = zone.trim();
+  if (!trimmedZone) return { ok: false, error: 'Group name is required.' };
+  if (trimmedZone.length > 80) return { ok: false, error: 'Group name is too long (80 max).' };
+  const { data, error } = await supabase.rpc(
+    'create_investigation_group_with_members',
+    {
+      p_investigation_id: investigationId,
+      p_zone: trimmedZone,
+      p_member_ids: memberIds,
+    }
+  );
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'No id returned' };
+  return { ok: true, id: data as string };
+}
+
+/** Tag a single member into an existing group. */
+export async function tagMemberIntoGroup(
+  groupId: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc('tag_member_into_group', {
+    p_group_id: groupId,
+    p_user_id: userId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Remove a member from a group. Leader or self. */
+export async function untagMemberFromGroup(
+  groupId: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc('untag_member_from_group', {
+    p_group_id: groupId,
+    p_user_id: userId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** All open groups the caller is in, for a specific investigation. */
+export async function listMyGroupsInInvestigation(
+  investigationId: string
+): Promise<Array<{ group_id: string }>> {
+  const { data, error } = await supabase.rpc('list_my_groups_in_investigation', {
+    p_investigation_id: investigationId,
+  });
+  if (error || !data) return [];
+  return (data as any[]).map((r) => ({ group_id: r.group_id }));
+}
+
+/** Members of a single group with profile info. */
+export async function listGroupMembers(
+  groupId: string
+): Promise<InvestigationGroupMemberRow[]> {
+  const { data, error } = await supabase.rpc('list_group_members', {
+    p_group_id: groupId,
+  });
+  if (error || !data) return [];
+  return data as InvestigationGroupMemberRow[];
+}
