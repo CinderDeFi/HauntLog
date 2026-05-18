@@ -50,6 +50,7 @@ import {
   Sparkles,
   Mic2,
   Share2,
+  Pencil,
 } from 'lucide-react';
 
 function formatDateTime(iso: string) {
@@ -104,6 +105,7 @@ export default function CaseView() {
   const currentUser = useHauntStore((s) => s.user);
   const updateCaseVisibility = useHauntStore((s) => s.updateCaseVisibility);
   const toggleLogStarAction = useHauntStore((s) => s.toggleLogStar);
+  const updateLogEntryAction = useHauntStore((s) => s.updateLogEntry);
 
   // Sample case is a synthetic CaseFile that lives in JS only. When the
   // URL is /case/sample we serve it from a constant; the rest of the
@@ -194,6 +196,15 @@ export default function CaseView() {
     new Map()
   );
   const [addAudioLogId, setAddAudioLogId] = useState<string | null>(null);
+
+  // Step 22+: post-seal log entry editing. Only one log can be in
+  // edit mode at a time. editingLogId === null means none is active.
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    observation: string;
+    note: string;
+  }>({ observation: '', note: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   // Is the viewer the owner of this case? Used to gate "add photos"
   // and other owner-only affordances.
@@ -357,6 +368,44 @@ export default function CaseView() {
     if (!res.ok) {
       toast.error('Could not update star', { description: res.error });
     }
+  };
+
+  /** Enter edit mode for a log entry. Stashes current values into the
+   * draft so the user can cancel without losing the original. */
+  const handleStartEdit = (log: { id: string; observation: string; note?: string }) => {
+    setEditingLogId(log.id);
+    setEditDraft({
+      observation: log.observation ?? '',
+      note: log.note ?? '',
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingLogId(null);
+    setEditDraft({ observation: '', note: '' });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!caseFile || !editingLogId) return;
+    const obs = editDraft.observation.trim();
+    if (obs.length === 0) {
+      toast.error('Observation cannot be empty');
+      return;
+    }
+    setEditSaving(true);
+    const res = await updateLogEntryAction(caseFile.id, editingLogId, {
+      observation: obs,
+      // null clears the note; empty string also normalised to null.
+      note: editDraft.note.trim() ? editDraft.note.trim() : null,
+    });
+    setEditSaving(false);
+    if (!res.ok) {
+      toast.error('Could not save changes', { description: res.error });
+      return;
+    }
+    toast.success('Log entry updated');
+    setEditingLogId(null);
+    setEditDraft({ observation: '', note: '' });
   };
 
   /** Called from AddPhotosModal when new photos have been uploaded. We
@@ -978,9 +1027,68 @@ export default function CaseView() {
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white break-words">{log.observation}</p>
-                    {log.note && (
-                      <p className="text-white/50 text-sm mt-0.5 break-words">{log.note}</p>
+                    {editingLogId === log.id ? (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-[10px] font-mono text-white/40 tracking-widest mb-1">
+                            OBSERVATION
+                          </label>
+                          <textarea
+                            value={editDraft.observation}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, observation: e.target.value }))
+                            }
+                            rows={2}
+                            className="w-full bg-black border border-white/20 focus:border-haunt-red rounded-lg px-3 py-2 text-sm text-white outline-none"
+                            placeholder="What did the gear catch?"
+                            autoFocus
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-mono text-white/40 tracking-widest mb-1">
+                            NOTE (OPTIONAL)
+                          </label>
+                          <textarea
+                            value={editDraft.note}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, note: e.target.value }))
+                            }
+                            rows={2}
+                            className="w-full bg-black border border-white/20 focus:border-haunt-red rounded-lg px-3 py-2 text-sm text-white/70 outline-none"
+                            placeholder="Context, conditions, anything else"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={handleSaveEdit}
+                            disabled={editSaving}
+                            className="bg-haunt-red hover:bg-red-600 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-xs font-mono tracking-widest inline-flex items-center gap-x-1.5"
+                          >
+                            {editSaving ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Check className="w-3 h-3" />
+                            )}
+                            SAVE
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEdit}
+                            disabled={editSaving}
+                            className="text-white/60 hover:text-white px-3 py-1.5 rounded-lg text-xs font-mono tracking-widest"
+                          >
+                            CANCEL
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-white break-words">{log.observation}</p>
+                        {log.note && (
+                          <p className="text-white/50 text-sm mt-0.5 break-words">{log.note}</p>
+                        )}
+                      </>
                     )}
                     {log.data && (
                       <div className="mt-1.5">
@@ -1017,27 +1125,41 @@ export default function CaseView() {
                       onAddMore={() => setAddAudioLogId(log.id)}
                     />
                   </div>
-                  {isCaseOwner && !isSample ? (
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStar(log.id, !!log.starred)}
-                      aria-label={log.starred ? 'Unstar this log entry' : 'Star this log entry'}
-                      title={log.starred ? 'Unstar' : 'Mark as highlight'}
-                      className={`shrink-0 mt-1 p-1 rounded-md transition-colors ${
-                        log.starred
-                          ? 'text-yellow-400 hover:bg-yellow-400/10'
-                          : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
-                      }`}
-                    >
-                      <Star
-                        className={`w-4 h-4 ${log.starred ? 'fill-yellow-400' : ''}`}
-                      />
-                    </button>
-                  ) : (
-                    log.starred && (
-                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 shrink-0 mt-1" />
-                    )
-                  )}
+                  {/* Right-side actions: edit + star (owner only, not sample) */}
+                  <div className="flex items-center gap-0 shrink-0 mt-1">
+                    {isCaseOwner && !isSample && editingLogId !== log.id && (
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(log)}
+                        aria-label="Edit this log entry"
+                        title="Edit"
+                        className="p-1 rounded-md text-white/20 hover:text-white/80 hover:bg-white/5 transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isCaseOwner && !isSample ? (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStar(log.id, !!log.starred)}
+                        aria-label={log.starred ? 'Unstar this log entry' : 'Star this log entry'}
+                        title={log.starred ? 'Unstar' : 'Mark as highlight'}
+                        className={`p-1 rounded-md transition-colors ${
+                          log.starred
+                            ? 'text-yellow-400 hover:bg-yellow-400/10'
+                            : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
+                        }`}
+                      >
+                        <Star
+                          className={`w-4 h-4 ${log.starred ? 'fill-yellow-400' : ''}`}
+                        />
+                      </button>
+                    ) : (
+                      log.starred && (
+                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
               );
