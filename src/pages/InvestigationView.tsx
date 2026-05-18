@@ -13,8 +13,11 @@ import {
   leaveInvestigationGroup,
   endInvestigationGroup,
   fetchMyInvestigationGroup,
+  listActiveHuntsInInvestigation,
   type InvestigationRow,
   type InvestigationGroupRow,
+  type ActiveHuntInInvestigation,
+  type InvestigationCaseRow,
 } from '../lib/dataLayer';
 import { fetchMyTeams } from '../lib/teamActions';
 import { useAuth } from '../lib/useAuth';
@@ -34,6 +37,8 @@ import {
   UsersRound,
   Plus,
   Crown,
+  Activity,
+  EyeOff,
 } from 'lucide-react';
 
 type MemberRow = {
@@ -63,7 +68,7 @@ export default function InvestigationView() {
 
   const [inv, setInv] = useState<InvestigationRow | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
-  const [cases, setCases] = useState<any[]>([]);
+  const [cases, setCases] = useState<InvestigationCaseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [iAmMember, setIAmMember] = useState(false);
@@ -79,6 +84,9 @@ export default function InvestigationView() {
   const [newGroupZone, setNewGroupZone] = useState('');
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupActionPending, setGroupActionPending] = useState<string | null>(null);
+
+  // Step 28: live hunts happening right now within this investigation.
+  const [liveHunts, setLiveHunts] = useState<ActiveHuntInInvestigation[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -127,6 +135,27 @@ export default function InvestigationView() {
       cancelled = true;
     };
   }, [id, authUser]);
+
+  // Step 28: poll live hunts every 20s while the investigation page
+  // is open. Only when the investigation itself is open — closed ones
+  // can't have new live hunts.
+  useEffect(() => {
+    if (!id || !inv || inv.status !== 'open') {
+      setLiveHunts([]);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      const list = await listActiveHuntsInInvestigation(id);
+      if (!cancelled) setLiveHunts(list);
+    };
+    load();
+    const t = setInterval(load, 20_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [id, inv]);
 
   if (loading) {
     return (
@@ -627,6 +656,91 @@ export default function InvestigationView() {
         </div>
       )}
 
+      {/* Step 28: Live hunts in progress */}
+      {inv.status === 'open' && liveHunts.length > 0 && (
+        <div className="bg-gradient-to-br from-haunt-red/10 to-zinc-900 border border-haunt-red/30 rounded-3xl p-6 mb-6">
+          <div className="flex items-center gap-x-2 mb-3">
+            <span className="relative inline-flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-haunt-red opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-haunt-red"></span>
+            </span>
+            <Activity className="w-4 h-4 text-haunt-red" />
+            <div className="text-xs font-mono text-haunt-red tracking-widest">
+              ACTIVE HUNTS · {liveHunts.length}
+            </div>
+          </div>
+          <div className="space-y-2">
+            {liveHunts.map((h) => {
+              const minutes = Math.max(
+                0,
+                Math.floor((Date.now() - new Date(h.started_at).getTime()) / 60000)
+              );
+              const label =
+                minutes < 1
+                  ? 'JUST STARTED'
+                  : minutes < 60
+                  ? `${minutes} MIN IN`
+                  : `${Math.floor(minutes / 60)}H ${minutes % 60}M IN`;
+              return (
+                <div
+                  key={h.check_in_id}
+                  className="flex items-center gap-3 bg-black/40 border border-haunt-red/20 rounded-2xl p-3"
+                >
+                  {h.is_anonymous ? (
+                    <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                      <EyeOff className="w-4 h-4 text-white/40" />
+                    </div>
+                  ) : h.owner_avatar_url ? (
+                    <img
+                      src={h.owner_avatar_url}
+                      alt=""
+                      className="w-9 h-9 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-haunt-red/20 flex items-center justify-center text-haunt-red text-xs font-mono shrink-0">
+                      {(h.owner_handle ?? '?')[0]?.toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">
+                      {h.is_anonymous ? (
+                        <span className="text-white/60 italic">Anonymous investigator</span>
+                      ) : (
+                        <>
+                          {h.owner_display_name ?? `@${h.owner_handle}`}
+                          {authUser?.id === h.owner_id && (
+                            <span className="ml-2 text-[10px] font-mono text-haunt-red tracking-widest">
+                              YOU
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <div className="text-[10px] font-mono text-white/40 tracking-widest mt-0.5 flex items-center gap-x-1.5 flex-wrap">
+                      <span>{label}</span>
+                      {h.group_zone && (
+                        <>
+                          <span className="text-white/20">·</span>
+                          <span className="inline-flex items-center gap-x-1 text-haunt-red">
+                            <UsersRound className="w-3 h-3" /> {h.group_zone.toUpperCase()}
+                          </span>
+                        </>
+                      )}
+                      {!h.group_zone && (
+                        <>
+                          <span className="text-white/20">·</span>
+                          <span className="text-white/40">SOLO</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Members */}
       <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6">
         <div className="flex items-center gap-x-2 mb-3">
@@ -698,28 +812,54 @@ export default function InvestigationView() {
           </div>
         ) : (
           <div className="space-y-2">
-            {cases.map((c: any) => (
-              <Link
-                key={c.id}
-                to={`/case/${c.id}`}
-                className="block bg-black border border-white/10 hover:border-haunt-red/40 rounded-2xl p-4"
-              >
-                <div className="flex items-start justify-between gap-3 mb-1">
-                  <div className="text-xs font-mono text-white/40 tracking-widest">
-                    #{c.id}
-                  </div>
-                  {c.zone && (
-                    <div className="text-[10px] font-mono text-white/40 tracking-widest">
-                      {c.zone.toUpperCase()}
+            {cases.map((c) => {
+              const inner = (
+                <>
+                  <div className="flex items-start justify-between gap-3 mb-1">
+                    <div className="text-xs font-mono text-white/40 tracking-widest">
+                      #{c.id}
                     </div>
-                  )}
-                </div>
-                <div className="font-medium">{c.title}</div>
-                <div className="text-xs text-white/40 mt-1">
-                  {formatWhen(c.ended_at ?? c.started_at)}
-                </div>
-              </Link>
-            ))}
+                    {c.redacted ? (
+                      <div className="text-[10px] font-mono text-white/40 tracking-widest inline-flex items-center gap-x-1">
+                        <Lock className="w-2.5 h-2.5" /> PRIVATE
+                      </div>
+                    ) : (
+                      c.zone && (
+                        <div className="text-[10px] font-mono text-white/40 tracking-widest">
+                          {c.zone.toUpperCase()}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <div className={`font-medium ${c.redacted ? 'text-white/50 italic' : ''}`}>
+                    {c.title}
+                  </div>
+                  <div className="text-xs text-white/40 mt-1">
+                    {formatWhen(c.ended_at ?? c.started_at)}
+                  </div>
+                </>
+              );
+              if (c.redacted) {
+                return (
+                  <div
+                    key={c.id}
+                    className="block bg-black/40 border border-white/5 rounded-2xl p-4 cursor-default"
+                    title="This case is private. Contents visible only to its owner."
+                  >
+                    {inner}
+                  </div>
+                );
+              }
+              return (
+                <Link
+                  key={c.id}
+                  to={`/case/${c.id}`}
+                  className="block bg-black border border-white/10 hover:border-haunt-red/40 rounded-2xl p-4"
+                >
+                  {inner}
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
