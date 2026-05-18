@@ -60,6 +60,11 @@
     overscroll-behavior: none;
     /* Lock font size so iOS doesn't auto-grow on landscape rotate. */
     -webkit-text-size-adjust: 100%;
+    /* Brand background: pinch-zoom-out and overscroll should reveal
+       black, not the browser's default white. Applied to both html
+       and body since some browsers paint either layer when zoomed
+       beyond content bounds. Field Mode overrides body above. */
+    background-color: #000000;
   }
   body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
