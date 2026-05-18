@@ -39,6 +39,7 @@ import {
   Crown,
   Activity,
   EyeOff,
+  User as UserIcon,
 } from 'lucide-react';
 
 type MemberRow = {
@@ -656,90 +657,156 @@ export default function InvestigationView() {
         </div>
       )}
 
-      {/* Step 28: Live hunts in progress */}
-      {inv.status === 'open' && liveHunts.length > 0 && (
-        <div className="bg-gradient-to-br from-haunt-red/10 to-zinc-900 border border-haunt-red/30 rounded-3xl p-6 mb-6">
-          <div className="flex items-center gap-x-2 mb-3">
-            <span className="relative inline-flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-haunt-red opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-haunt-red"></span>
-            </span>
-            <Activity className="w-4 h-4 text-haunt-red" />
-            <div className="text-xs font-mono text-haunt-red tracking-widest">
-              ACTIVE HUNTS · {liveHunts.length}
+      {/* Step 28+30: Live hunts in progress, grouped by zone. */}
+      {inv.status === 'open' && liveHunts.length > 0 && (() => {
+        // Bucket hunts by group_id. Use a Map so insertion order is
+        // predictable; the SOLO bucket lives under the null key and is
+        // intentionally rendered last.
+        type Bucket = {
+          groupId: string | null;
+          zone: string | null;
+          leaderId: string | null;
+          hunts: typeof liveHunts;
+        };
+        const bucketMap = new Map<string, Bucket>();
+        for (const h of liveHunts) {
+          const key = h.group_id ?? '__solo__';
+          if (!bucketMap.has(key)) {
+            // Look up the leader from the groups list we already loaded.
+            const g = h.group_id ? groups.find((x) => x.id === h.group_id) : null;
+            bucketMap.set(key, {
+              groupId: h.group_id ?? null,
+              zone: h.group_zone ?? null,
+              leaderId: g?.leader_id ?? null,
+              hunts: [],
+            });
+          }
+          bucketMap.get(key)!.hunts.push(h);
+        }
+        // Order: groups first (by earliest hunt started in each, oldest
+        // first), then solo bucket. Within each, oldest hunt first.
+        const buckets = Array.from(bucketMap.values()).sort((a, b) => {
+          if (a.groupId === null) return 1;
+          if (b.groupId === null) return -1;
+          const aMin = Math.min(...a.hunts.map((h) => new Date(h.started_at).getTime()));
+          const bMin = Math.min(...b.hunts.map((h) => new Date(h.started_at).getTime()));
+          return aMin - bMin;
+        });
+        for (const b of buckets) {
+          b.hunts.sort(
+            (x, y) => new Date(x.started_at).getTime() - new Date(y.started_at).getTime()
+          );
+        }
+
+        const formatLabel = (startedAt: string) => {
+          const minutes = Math.max(
+            0,
+            Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000)
+          );
+          if (minutes < 1) return 'JUST STARTED';
+          if (minutes < 60) return `${minutes} MIN IN`;
+          return `${Math.floor(minutes / 60)}H ${minutes % 60}M IN`;
+        };
+
+        return (
+          <div className="bg-gradient-to-br from-haunt-red/10 to-zinc-900 border border-haunt-red/30 rounded-3xl p-6 mb-6">
+            <div className="flex items-center gap-x-2 mb-4">
+              <span className="relative inline-flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-haunt-red opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-haunt-red"></span>
+              </span>
+              <Activity className="w-4 h-4 text-haunt-red" />
+              <div className="text-xs font-mono text-haunt-red tracking-widest">
+                ACTIVE HUNTS · {liveHunts.length}
+              </div>
             </div>
-          </div>
-          <div className="space-y-2">
-            {liveHunts.map((h) => {
-              const minutes = Math.max(
-                0,
-                Math.floor((Date.now() - new Date(h.started_at).getTime()) / 60000)
-              );
-              const label =
-                minutes < 1
-                  ? 'JUST STARTED'
-                  : minutes < 60
-                  ? `${minutes} MIN IN`
-                  : `${Math.floor(minutes / 60)}H ${minutes % 60}M IN`;
-              return (
-                <div
-                  key={h.check_in_id}
-                  className="flex items-center gap-3 bg-black/40 border border-haunt-red/20 rounded-2xl p-3"
-                >
-                  {h.is_anonymous ? (
-                    <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                      <EyeOff className="w-4 h-4 text-white/40" />
-                    </div>
-                  ) : h.owner_avatar_url ? (
-                    <img
-                      src={h.owner_avatar_url}
-                      alt=""
-                      className="w-9 h-9 rounded-full object-cover shrink-0"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-haunt-red/20 flex items-center justify-center text-haunt-red text-xs font-mono shrink-0">
-                      {(h.owner_handle ?? '?')[0]?.toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium truncate">
-                      {h.is_anonymous ? (
-                        <span className="text-white/60 italic">Anonymous investigator</span>
+
+            <div className="space-y-4">
+              {buckets.map((b) => {
+                const isSolo = b.groupId === null;
+                return (
+                  <div key={b.groupId ?? '__solo__'}>
+                    {/* Bucket header */}
+                    <div className="flex items-center gap-x-2 mb-2 px-1">
+                      {isSolo ? (
+                        <>
+                          <UserIcon className="w-3.5 h-3.5 text-white/40" />
+                          <div className="text-[10px] font-mono text-white/50 tracking-widest">
+                            SOLO · {b.hunts.length}
+                          </div>
+                        </>
                       ) : (
                         <>
-                          {h.owner_display_name ?? `@${h.owner_handle}`}
-                          {authUser?.id === h.owner_id && (
-                            <span className="ml-2 text-[10px] font-mono text-haunt-red tracking-widest">
-                              YOU
-                            </span>
-                          )}
+                          <UsersRound className="w-3.5 h-3.5 text-haunt-red" />
+                          <div className="text-[10px] font-mono text-haunt-red tracking-widest">
+                            {(b.zone ?? 'GROUP').toUpperCase()} · {b.hunts.length}{' '}
+                            {b.hunts.length === 1 ? 'INVESTIGATOR' : 'INVESTIGATORS'}
+                          </div>
                         </>
                       )}
                     </div>
-                    <div className="text-[10px] font-mono text-white/40 tracking-widest mt-0.5 flex items-center gap-x-1.5 flex-wrap">
-                      <span>{label}</span>
-                      {h.group_zone && (
-                        <>
-                          <span className="text-white/20">·</span>
-                          <span className="inline-flex items-center gap-x-1 text-haunt-red">
-                            <UsersRound className="w-3 h-3" /> {h.group_zone.toUpperCase()}
-                          </span>
-                        </>
-                      )}
-                      {!h.group_zone && (
-                        <>
-                          <span className="text-white/20">·</span>
-                          <span className="text-white/40">SOLO</span>
-                        </>
-                      )}
+
+                    {/* Member rows */}
+                    <div className="space-y-1.5">
+                      {b.hunts.map((h) => {
+                        const isLeader = b.leaderId && h.owner_id === b.leaderId;
+                        return (
+                          <div
+                            key={h.check_in_id}
+                            className={`flex items-center gap-3 rounded-2xl p-3 border ${
+                              isSolo
+                                ? 'bg-black/30 border-white/10'
+                                : 'bg-black/40 border-haunt-red/20'
+                            }`}
+                          >
+                            {h.is_anonymous ? (
+                              <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                                <EyeOff className="w-4 h-4 text-white/40" />
+                              </div>
+                            ) : h.owner_avatar_url ? (
+                              <img
+                                src={h.owner_avatar_url}
+                                alt=""
+                                className="w-9 h-9 rounded-full object-cover shrink-0"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-haunt-red/20 flex items-center justify-center text-haunt-red text-xs font-mono shrink-0">
+                                {(h.owner_handle ?? '?')[0]?.toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium truncate flex items-center gap-x-1.5 flex-wrap">
+                                {h.is_anonymous ? (
+                                  <span className="text-white/60 italic">Anonymous</span>
+                                ) : (
+                                  <>
+                                    <span>{h.owner_display_name ?? `@${h.owner_handle}`}</span>
+                                    {isLeader && (
+                                      <Crown className="w-3 h-3 text-yellow-400 shrink-0" />
+                                    )}
+                                    {authUser?.id === h.owner_id && (
+                                      <span className="text-[10px] font-mono text-haunt-red tracking-widest">
+                                        YOU
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              <div className="text-[10px] font-mono text-white/40 tracking-widest mt-0.5">
+                                {formatLabel(h.started_at)}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Members */}
       <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6">
