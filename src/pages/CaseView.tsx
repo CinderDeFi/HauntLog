@@ -95,6 +95,7 @@ export default function CaseView() {
   const cases = useHauntStore((s) => s.cases);
   const currentUser = useHauntStore((s) => s.user);
   const updateCaseVisibility = useHauntStore((s) => s.updateCaseVisibility);
+  const toggleLogStarAction = useHauntStore((s) => s.toggleLogStar);
 
   // Sample case is a synthetic CaseFile that lives in JS only. When the
   // URL is /case/sample we serve it from a constant; the rest of the
@@ -273,6 +274,17 @@ export default function CaseView() {
       else next.delete(photo.log_entry_id);
       return next;
     });
+  };
+
+  /** Toggle the starred flag on a log entry. Owner-only — gated in
+   * the UI but also enforced by RLS. */
+  const handleToggleStar = async (logId: string, currentStarred: boolean) => {
+    if (!caseFile) return;
+    const next = !currentStarred;
+    const res = await toggleLogStarAction(caseFile.id, logId, next);
+    if (!res.ok) {
+      alert(`Failed to update: ${res.error}`);
+    }
   };
 
   /** Called from AddPhotosModal when new photos have been uploaded. We
@@ -851,8 +863,26 @@ export default function CaseView() {
                     />
                   )}
                 </div>
-                {log.starred && (
-                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 shrink-0 mt-1" />
+                {isCaseOwner && !isSample ? (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStar(log.id, !!log.starred)}
+                    aria-label={log.starred ? 'Unstar this log entry' : 'Star this log entry'}
+                    title={log.starred ? 'Unstar' : 'Mark as highlight'}
+                    className={`shrink-0 mt-1 p-1 rounded-md transition-colors ${
+                      log.starred
+                        ? 'text-yellow-400 hover:bg-yellow-400/10'
+                        : 'text-white/20 hover:text-yellow-400/70 hover:bg-white/5'
+                    }`}
+                  >
+                    <Star
+                      className={`w-4 h-4 ${log.starred ? 'fill-yellow-400' : ''}`}
+                    />
+                  </button>
+                ) : (
+                  log.starred && (
+                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 shrink-0 mt-1" />
+                  )
                 )}
               </div>
               );
