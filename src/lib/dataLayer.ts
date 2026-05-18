@@ -365,6 +365,17 @@ export async function deactivateCheckIn(checkInId: string): Promise<void> {
   await supabase.from('check_ins').update({ active: false }).eq('id', checkInId);
 }
 
+/** Deactivate by the deterministic hunt_id text instead of the row id.
+ * Useful when sealing because the row id may not yet be known if the
+ * background insert hasn't returned. The hunt_id is set client-side
+ * at hunt start and is stable. */
+export async function deactivateCheckInByHuntId(huntId: string): Promise<void> {
+  await supabase
+    .from('check_ins')
+    .update({ active: false })
+    .eq('hunt_id', huntId);
+}
+
 // ============================================================
 // COMMENTS
 // ============================================================
