@@ -187,6 +187,11 @@ export type CaseFile = {
 
 export type ActiveHunt = {
   id: string;
+  /** Supabase user id of the investigator who started this hunt.
+   * Required so we can defensively discard a stale activeHunt when a
+   * different user signs in on the same browser (localStorage is
+   * shared across accounts on the same device). */
+  userId?: string;
   startedAt: string;
   venueId?: string;
   location: string;
@@ -249,6 +254,9 @@ type HauntState = {
   activeHunt: ActiveHunt | null;
 
   startHunt: (init: {
+    /** Supabase user id of the investigator. Required so the hunt
+     * can be discarded if another account signs into the same browser. */
+    userId?: string;
     venueId?: string;
     location: string;
     zone?: string;
@@ -277,6 +285,13 @@ type HauntState = {
     teamId?: string;
   }) => Promise<{ ok: true; sealed: CaseFile } | { ok: false; error: string }>;
   cancelHunt: () => void;
+
+  /** Defensive guard: discard the persisted active hunt if its userId
+   * doesn't match the currently-authenticated user. Called from
+   * useAuth on every auth state change so signing out / signing in
+   * as a different account on the same browser cannot leak the
+   * previous user's in-progress hunt. */
+  clearActiveHuntIfStale: (currentUserId: string | null) => void;
 
   // Post-seal: case owner can change visibility at any time.
   updateCaseVisibility: (caseId: string, visibility: Visibility) => Promise<void>;
@@ -431,6 +446,7 @@ export const useHauntStore = create<HauntState>()(
 
         const hunt: ActiveHunt = {
           id: 'live-' + Date.now(),
+          userId: init.userId,
           startedAt,
           venueId: init.venueId,
           location: init.location,
@@ -727,6 +743,18 @@ export const useHauntStore = create<HauntState>()(
             ? s.checkIns.map((ci) => (ci.huntId === h.id ? { ...ci, active: false } : ci))
             : s.checkIns,
         }));
+      },
+
+      clearActiveHuntIfStale: (currentUserId) => {
+        const h = get().activeHunt;
+        if (!h) return;
+        // If the hunt has no userId stamp (legacy data from before
+        // step 27) OR the stamp doesn't match the current user, drop it.
+        // We do NOT try to deactivate the server check-in here — that
+        // belongs to another user's session and we're not the owner.
+        if (!h.userId || h.userId !== currentUserId) {
+          set({ activeHunt: null });
+        }
       },
 
       updateCaseVisibility: async (caseId, visibility) => {
