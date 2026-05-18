@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useHauntStore, type Visibility, type CaseFile } from '../store/useHauntStore';
+import {
+  useHauntStore,
+  type Visibility,
+  type CaseFile,
+  EQUIPMENT_CATALOG,
+} from '../store/useHauntStore';
+import { equipmentChipColors } from '../lib/equipmentColors';
 import { useAuth } from '../lib/useAuth';
 import { fetchMyDeletedCases, restoreCase } from '../lib/dataLayer';
 import {
@@ -57,6 +63,13 @@ export default function Vault() {
   const cases = useHauntStore((s) => s.cases);
   const [filter, setFilter] = useState<Filter>('all');
   const [scope, setScope] = useState<Scope>('all');
+  // Step 23: equipment filter — match cases that used a specific device.
+  // Null means "any equipment". Multiple equipment ids can be selected
+  // to OR them together.
+  const [equipFilter, setEquipFilter] = useState<Set<string>>(new Set());
+  // Step 23: starred-only filter. When true, only show cases with at
+  // least one starred log entry.
+  const [starredOnly, setStarredOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
 
@@ -133,6 +146,20 @@ export default function Vault() {
       // Visibility filter
       if (filter !== 'all' && c.visibility !== filter) return false;
       if (tagFilter && !c.tags?.includes(tagFilter)) return false;
+      // Equipment filter — match if the case used any of the chosen devices.
+      if (equipFilter.size > 0) {
+        const used = c.equipmentUsed ?? [];
+        let hit = false;
+        for (const e of equipFilter) {
+          if (used.includes(e)) {
+            hit = true;
+            break;
+          }
+        }
+        if (!hit) return false;
+      }
+      // Starred-only — case must have at least one starred log entry.
+      if (starredOnly && !c.logs.some((l) => l.starred)) return false;
       if (q) {
         const hay =
           (c.title + ' ' + (c.summary ?? '') + ' ' + c.location + ' ' + (c.zone ?? '')).toLowerCase();
@@ -140,7 +167,7 @@ export default function Vault() {
       }
       return true;
     });
-  }, [cases, filter, scope, tagFilter, search, authUser]);
+  }, [cases, filter, scope, tagFilter, search, authUser, equipFilter, starredOnly]);
 
   return (
     <div>
@@ -256,6 +283,51 @@ export default function Vault() {
               ))}
             </div>
           )}
+
+          {/* Equipment + starred filter row */}
+          <div className="flex gap-1.5 flex-wrap items-center">
+            <span className="text-[10px] font-mono text-white/30 tracking-widest pr-1">
+              EQUIPMENT
+            </span>
+            {EQUIPMENT_CATALOG.map((e) => {
+              const on = equipFilter.has(e.id);
+              const chip = equipmentChipColors(e.id);
+              return (
+                <button
+                  key={e.id}
+                  onClick={() =>
+                    setEquipFilter((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(e.id)) next.delete(e.id);
+                      else next.add(e.id);
+                      return next;
+                    })
+                  }
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-mono tracking-widest border transition-all ${
+                    on
+                      ? `${chip.bg} ${chip.text} ${chip.border}`
+                      : 'bg-transparent text-white/40 border-white/10 hover:border-white/30'
+                  }`}
+                >
+                  {e.abbr}
+                </button>
+              );
+            })}
+            <span className="w-px h-4 bg-white/10 mx-2" />
+            <button
+              onClick={() => setStarredOnly((v) => !v)}
+              className={`px-2.5 py-1 rounded-md text-[10px] font-mono tracking-widest border transition-all inline-flex items-center gap-x-1 ${
+                starredOnly
+                  ? 'bg-yellow-400/10 text-yellow-400 border-yellow-400/40'
+                  : 'bg-transparent text-white/40 border-white/10 hover:border-white/30'
+              }`}
+            >
+              <Star
+                className={`w-3 h-3 ${starredOnly ? 'fill-yellow-400' : ''}`}
+              />
+              STARRED ONLY
+            </button>
+          </div>
         </div>
       )}
 

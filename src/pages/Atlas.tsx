@@ -216,8 +216,50 @@ export default function Atlas() {
         )}
       </div>
       {filteredVenues.length === 0 ? (
-        <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 text-center text-white/40 text-sm">
-          {venues.length === 0 ? 'No locations in the atlas yet.' : 'No locations match your filters.'}
+        <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 text-center">
+          {venues.length === 0 ? (
+            <>
+              <MapPin className="w-8 h-8 mx-auto mb-3 text-white/30" />
+              <div className="text-sm text-white/70 mb-1">No locations in the atlas yet.</div>
+              <div className="text-xs text-white/40 mb-4">Be the first to add one.</div>
+              <Link
+                to="/app/venues/submit"
+                className="inline-flex items-center gap-x-1.5 px-4 py-2 rounded-xl bg-haunt-red hover:bg-red-600 text-white text-xs font-mono tracking-widest"
+              >
+                <Plus className="w-3 h-3" /> SUBMIT A VENUE
+              </Link>
+            </>
+          ) : (
+            <>
+              <div className="text-sm text-white/70 mb-1">No locations match your filters.</div>
+              <div className="text-xs text-white/40 mb-4">
+                {search.trim() ? (
+                  <>Try a different search or </>
+                ) : (
+                  <>Try </>
+                )}
+                clearing the filters.
+              </div>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <button
+                  onClick={() => {
+                    setSearch('');
+                    setSource('all');
+                    setTagFilter(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono tracking-widest text-white/70"
+                >
+                  CLEAR FILTERS
+                </button>
+                <Link
+                  to="/app/venues/submit"
+                  className="px-3 py-1.5 rounded-lg bg-haunt-red/10 hover:bg-haunt-red/20 border border-haunt-red/30 text-xs font-mono tracking-widest text-haunt-red inline-flex items-center gap-x-1.5"
+                >
+                  <Plus className="w-3 h-3" /> SUGGEST ONE
+                </Link>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         filteredVenues.map((v) => (
