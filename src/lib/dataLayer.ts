@@ -2342,3 +2342,36 @@ export async function fetchAudioForCase(
   }
   return result;
 }
+
+/**
+ * Edit the textual fields (and optionally the timestamp) of a sealed
+ * log entry. Owner-only, enforced by RLS. Returns ok or an error
+ * message.
+ *
+ * Pass undefined for any field you don't want to change. To clear a
+ * note, pass null.
+ */
+export async function updateLogEntry(
+  logId: string,
+  fields: {
+    observation?: string;
+    note?: string | null;
+    timestamp?: string;
+  }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const patch: {
+    observation?: string;
+    note?: string | null;
+    timestamp?: string;
+  } = {};
+  if (fields.observation !== undefined) patch.observation = fields.observation;
+  if (fields.note !== undefined) patch.note = fields.note;
+  if (fields.timestamp !== undefined) patch.timestamp = fields.timestamp;
+  if (Object.keys(patch).length === 0) return { ok: true };
+  const { error } = await supabase
+    .from('log_entries')
+    .update(patch)
+    .eq('id', logId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
