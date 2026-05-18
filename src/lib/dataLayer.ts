@@ -464,6 +464,8 @@ export type FeedCase = CaseFile & {
   teamLogo: string | null;
   teamVerified: boolean;
   createdAt: string;
+  /** Step 42: denormalized reaction counts read straight off the row. */
+  reactionCounts: Partial<Record<'examine' | 'witnessed' | 'skeptical' | 'chilled', number>>;
 };
 
 /**
@@ -520,6 +522,7 @@ export async function fetchRecentFeed(limit = 50): Promise<FeedCase[]> {
       teamLogo: row.team?.logo_url ?? null,
       teamVerified: Boolean(row.team?.verified),
       createdAt: row.created_at,
+      reactionCounts: (row.reaction_counts ?? {}) as FeedCase['reactionCounts'],
     };
   });
 }
@@ -724,6 +727,7 @@ export async function fetchFollowingFeed(
       teamLogo: row.team?.logo_url ?? null,
       teamVerified: Boolean(row.team?.verified),
       createdAt: row.created_at,
+      reactionCounts: (row.reaction_counts ?? {}) as FeedCase['reactionCounts'],
     };
   });
 }
@@ -3076,4 +3080,82 @@ export async function deleteHuntDraft(
     .eq('owner_id', ownerId);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+// ============================================================
+// CASE REACTIONS (step 42)
+// ============================================================
+// Four domain-specific stances on a sealed case.
+//   examine   — worth scrutinizing closely
+//   witnessed — I've had a similar experience
+//   skeptical — I'm not convinced; could be explained
+//   chilled   — this gave me goosebumps
+//
+// One reaction per user per case. Counts are denormalized onto
+// cases.reaction_counts (jsonb) by a server-side trigger.
+
+export type CaseReaction = 'examine' | 'witnessed' | 'skeptical' | 'chilled';
+
+export type CaseReactionCounts = Partial<Record<CaseReaction, number>>;
+
+/** Fetch the calling user's current reaction on a case, or null. */
+export async function fetchMyCaseReaction(
+  caseId: string
+): Promise<CaseReaction | null> {
+  const { data, error } = await supabase.rpc('get_my_case_reaction', {
+    p_case_id: caseId,
+  });
+  if (error) {
+    console.warn('[fetchMyCaseReaction]', error.message);
+    return null;
+  }
+  return (data as CaseReaction) ?? null;
+}
+
+/** Set or change the user's reaction on a case. Upserts on (case,user). */
+export async function setCaseReaction(input: {
+  caseId: string;
+  userId: string;
+  reaction: CaseReaction;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('case_reactions')
+    .upsert(
+      {
+        case_id: input.caseId,
+        user_id: input.userId,
+        reaction: input.reaction,
+      },
+      { onConflict: 'case_id,user_id' }
+    );
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Clear the user's reaction on a case (delete the row). Idempotent. */
+export async function clearCaseReaction(input: {
+  caseId: string;
+  userId: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('case_reactions')
+    .delete()
+    .eq('case_id', input.caseId)
+    .eq('user_id', input.userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Fetch the current reaction counts on a case. Reads the denormalized
+ * column on the cases row — O(1). */
+export async function fetchCaseReactionCounts(
+  caseId: string
+): Promise<CaseReactionCounts> {
+  const { data, error } = await supabase
+    .from('cases')
+    .select('reaction_counts')
+    .eq('id', caseId)
+    .maybeSingle();
+  if (error || !data) return {};
+  return (data.reaction_counts as CaseReactionCounts) ?? {};
 }

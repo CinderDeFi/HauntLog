@@ -201,6 +201,9 @@ export type CaseRow = {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Step 42: denormalized aggregate of case_reactions, kept fresh
+   * by a trigger. Shape: {examine?, witnessed?, skeptical?, chilled?}. */
+  reaction_counts: Record<string, number>;
 };
 
 export type LogEntryRow = {
@@ -599,6 +602,24 @@ export type Database = {
         };
         Relationships: [];
       };
+      case_reactions: {
+        Row: {
+          case_id: string;
+          user_id: string;
+          reaction: 'examine' | 'witnessed' | 'skeptical' | 'chilled';
+          created_at: string;
+        };
+        Insert: {
+          case_id: string;
+          user_id: string;
+          reaction: 'examine' | 'witnessed' | 'skeptical' | 'chilled';
+          created_at?: string;
+        };
+        Update: {
+          reaction?: 'examine' | 'witnessed' | 'skeptical' | 'chilled';
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -899,6 +920,10 @@ export type Database = {
           total_audio: number;
           duration_seconds: number;
         }>;
+      };
+      get_my_case_reaction: {
+        Args: { p_case_id: string };
+        Returns: 'examine' | 'witnessed' | 'skeptical' | 'chilled' | null;
       };
     };
   };
