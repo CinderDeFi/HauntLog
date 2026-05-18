@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, SUPABASE_CONFIGURED } from './supabase';
 import type { ProfileRow } from './database.types';
+import { useHauntStore } from '../store/useHauntStore';
 
 export type AuthStatus = 'loading' | 'signed_out' | 'signed_in';
 
@@ -44,6 +45,14 @@ async function loadProfile(userId: string): Promise<ProfileRow | null> {
 async function applySession(session: Session | null) {
   if (!session) {
     setCached({ status: 'signed_out', user: null, session: null, profile: null });
+    // Step 27: any in-progress hunt belongs to the previous user.
+    // Drop it from local store so it can't leak to the next user
+    // who signs in on this browser.
+    try {
+      useHauntStore.getState().clearActiveHuntIfStale(null);
+    } catch {
+      /* store may not be ready in some test contexts */
+    }
     return;
   }
   const profile = await loadProfile(session.user.id);
@@ -53,6 +62,13 @@ async function applySession(session: Session | null) {
     session,
     profile,
   });
+  // Step 27: defensive — if localStorage has a stale activeHunt from a
+  // previous account, discard it.
+  try {
+    useHauntStore.getState().clearActiveHuntIfStale(session.user.id);
+  } catch {
+    /* ignore */
+  }
 }
 
 function ensureInitialized() {
