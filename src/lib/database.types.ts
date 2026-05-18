@@ -761,7 +761,31 @@ export type Database = {
       };
       list_investigation_cases: {
         Args: { p_investigation_id: string };
-        Returns: any[];
+        Returns: Array<{
+          id: string;
+          owner_id: string;
+          team_id: string | null;
+          title: string;
+          summary: string | null;
+          location_id: string | null;
+          location_name: string;
+          zone: string | null;
+          lat: number | null;
+          lng: number | null;
+          started_at: string;
+          ended_at: string | null;
+          visibility: 'public' | 'private' | 'anonymous';
+          gps_verified: boolean;
+          equipment_used: string[] | null;
+          custom_equipment: Record<string, string> | null;
+          tags: string[] | null;
+          sealed: boolean;
+          investigation_id: string | null;
+          group_id: string | null;
+          redacted: boolean;
+          created_at: string;
+          updated_at: string;
+        }>;
       };
       create_investigation_group: {
         Args: { p_investigation_id: string; p_zone: string };
@@ -823,6 +847,23 @@ export type Database = {
           handle: string | null;
           display_name: string | null;
           avatar_url: string | null;
+        }>;
+      };
+      list_active_hunts_in_investigation: {
+        Args: { p_investigation_id: string };
+        Returns: Array<{
+          check_in_id: string;
+          hunt_id: string;
+          owner_id: string;
+          owner_handle: string | null;
+          owner_display_name: string | null;
+          owner_avatar_url: string | null;
+          is_anonymous: boolean;
+          location_name: string;
+          started_at: string;
+          expires_at: string;
+          group_id: string | null;
+          group_zone: string | null;
         }>;
       };
     };

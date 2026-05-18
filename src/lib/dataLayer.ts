@@ -311,11 +311,15 @@ export async function updateCaseVisibility(
 
 export async function fetchActiveCheckIns(): Promise<CheckIn[]> {
   const nowIso = new Date().toISOString();
+  // Exclude private visibility — those check-ins exist only so
+  // teammates can see live activity inside an investigation; they
+  // are NOT meant for the public Atlas.
   const { data, error } = await supabase
     .from('check_ins')
     .select('*, owner:profiles!owner_id(handle)')
     .eq('active', true)
     .gt('expires_at', nowIso)
+    .neq('visibility', 'private')
     .order('started_at', { ascending: false })
     .limit(200);
   if (error) throw error;
@@ -2654,14 +2658,44 @@ export async function fetchInvestigationMembers(
 }
 
 /** All cases linked to this investigation. */
+/** Row shape returned by list_investigation_cases. Looks like a
+ * normal case row but adds a `redacted` boolean so the UI can render
+ * a stub card for other people's private cases (the title is replaced
+ * with "[Private case]" and most fields are nulled). */
+export type InvestigationCaseRow = {
+  id: string;
+  owner_id: string;
+  team_id: string | null;
+  title: string;
+  summary: string | null;
+  location_id: string | null;
+  location_name: string;
+  zone: string | null;
+  lat: number | null;
+  lng: number | null;
+  started_at: string;
+  ended_at: string | null;
+  visibility: 'public' | 'private' | 'anonymous';
+  gps_verified: boolean;
+  equipment_used: string[] | null;
+  custom_equipment: Record<string, string> | null;
+  tags: string[] | null;
+  sealed: boolean;
+  investigation_id: string | null;
+  group_id: string | null;
+  redacted: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export async function fetchInvestigationCases(
   investigationId: string
-): Promise<any[]> {
+): Promise<InvestigationCaseRow[]> {
   const { data, error } = await supabase.rpc('list_investigation_cases', {
     p_investigation_id: investigationId,
   });
   if (error || !data) return [];
-  return data;
+  return data as InvestigationCaseRow[];
 }
 
 /** Link an existing case to an investigation (or unlink with null). */
@@ -2877,4 +2911,40 @@ export async function listGroupMembers(
   });
   if (error || !data) return [];
   return data as InvestigationGroupMemberRow[];
+}
+
+// ============================================================
+// LIVE HUNTS IN AN INVESTIGATION (step 28)
+// ============================================================
+
+export type ActiveHuntInInvestigation = {
+  check_in_id: string;
+  hunt_id: string;
+  owner_id: string;
+  owner_handle: string | null;
+  owner_display_name: string | null;
+  owner_avatar_url: string | null;
+  is_anonymous: boolean;
+  location_name: string;
+  started_at: string;
+  expires_at: string;
+  group_id: string | null;
+  group_zone: string | null;
+};
+
+/** Returns currently-live hunts (active + non-expired check-ins) from
+ * the investigation's members, with profile + group context attached
+ * for display. RLS-gated server-side; non-team-members get nothing. */
+export async function listActiveHuntsInInvestigation(
+  investigationId: string
+): Promise<ActiveHuntInInvestigation[]> {
+  const { data, error } = await supabase.rpc(
+    'list_active_hunts_in_investigation',
+    { p_investigation_id: investigationId }
+  );
+  if (error) {
+    console.warn('[listActiveHuntsInInvestigation]', error.message);
+    return [];
+  }
+  return (data ?? []) as ActiveHuntInInvestigation[];
 }
