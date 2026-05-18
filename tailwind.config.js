@@ -5,7 +5,7 @@ export default {
     extend: {
       colors: {
         haunt: {
-          red: "#E24B4A",
+          red: "var(--haunt-red)",
           dark: "#111111",
           ghost: "#E5E5E5",
         },
