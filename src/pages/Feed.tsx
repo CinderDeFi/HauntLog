@@ -6,6 +6,7 @@ import {
   type FeedCase,
 } from '../lib/dataLayer';
 import { useAuth } from '../lib/useAuth';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 import {
   Activity,
   Loader2,
@@ -87,8 +88,38 @@ export default function Feed() {
     return filter === 'following' ? followingCases : allCases;
   }, [filter, allCases, followingCases]);
 
+  // Pull-to-refresh on touch devices. Triggers the same load() call
+  // the manual refresh button uses.
+  const { pulling, pullDistance, threshold } = usePullToRefresh(() => load(false));
+
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto relative">
+      {/* Pull-to-refresh indicator — only visible while pulling */}
+      {(pulling || refreshing) && (
+        <div
+          className="md:hidden absolute left-0 right-0 -top-4 flex items-center justify-center pointer-events-none z-10 transition-transform"
+          style={{
+            transform: refreshing
+              ? `translateY(${threshold}px)`
+              : `translateY(${Math.min(pullDistance, threshold + 20)}px)`,
+          }}
+        >
+          <div
+            className={`rounded-full bg-zinc-900/95 border border-white/10 p-2 shadow-lg ${
+              refreshing ? '' : 'transition-opacity'
+            }`}
+            style={{
+              opacity: refreshing ? 1 : Math.min(pullDistance / threshold, 1),
+            }}
+          >
+            <RefreshCw
+              className={`w-4 h-4 text-haunt-red ${
+                refreshing ? 'animate-spin' : pullDistance >= threshold ? 'rotate-180' : ''
+              } transition-transform`}
+            />
+          </div>
+        </div>
+      )}
       <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
         <div>
           <div className="text-xs font-mono text-haunt-red tracking-widest mb-2 flex items-center gap-x-2">
