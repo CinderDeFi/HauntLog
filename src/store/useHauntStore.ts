@@ -276,6 +276,19 @@ type HauntState = {
     starred: boolean
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
 
+  // Post-seal: case owner can edit the textual content of a log entry.
+  // Pass undefined for fields you don't want to change. Pass null to
+  // clear `note`.
+  updateLogEntry: (
+    caseId: string,
+    logId: string,
+    fields: {
+      observation?: string;
+      note?: string | null;
+      timestamp?: string;
+    }
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+
   // Soft-delete a case. Owner only. Returns error string on failure.
   deleteCase: (caseId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 
@@ -709,6 +722,38 @@ export const useHauntStore = create<HauntState>()(
           ),
         }));
         const result = await dataLayer.setLogStarred(logId, starred);
+        if (!result.ok) {
+          set({ cases: before });
+          return result;
+        }
+        return { ok: true };
+      },
+
+      updateLogEntry: async (caseId, logId, fields) => {
+        // Optimistic local update — apply the patch to the matching log
+        // entry on the cached case. Rollback if server rejects.
+        const before = get().cases;
+        set((s) => ({
+          cases: s.cases.map((c) =>
+            c.id !== caseId
+              ? c
+              : {
+                  ...c,
+                  logs: c.logs.map((l) => {
+                    if (l.id !== logId) return l;
+                    const next = { ...l };
+                    if (fields.observation !== undefined)
+                      next.observation = fields.observation;
+                    if (fields.note !== undefined)
+                      next.note = fields.note ?? undefined;
+                    if (fields.timestamp !== undefined)
+                      next.timestamp = fields.timestamp;
+                    return next;
+                  }),
+                }
+          ),
+        }));
+        const result = await dataLayer.updateLogEntry(logId, fields);
         if (!result.ok) {
           set({ cases: before });
           return result;
