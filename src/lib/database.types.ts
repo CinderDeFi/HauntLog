@@ -532,6 +532,29 @@ export type Database = {
         };
         Relationships: [];
       };
+      investigation_groups: {
+        Row: {
+          id: string;
+          investigation_id: string;
+          leader_id: string;
+          zone: string;
+          created_at: string;
+          ended_at: string | null;
+        };
+        Insert: {
+          investigation_id: string;
+          leader_id: string;
+          zone: string;
+          id?: string;
+          created_at?: string;
+          ended_at?: string | null;
+        };
+        Update: {
+          zone?: string;
+          ended_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -719,6 +742,37 @@ export type Database = {
       list_investigation_cases: {
         Args: { p_investigation_id: string };
         Returns: any[];
+      };
+      create_investigation_group: {
+        Args: { p_investigation_id: string; p_zone: string };
+        Returns: string;
+      };
+      join_investigation_group: {
+        Args: { p_group_id: string };
+        Returns: void;
+      };
+      leave_investigation_group: {
+        Args: { p_investigation_id: string };
+        Returns: void;
+      };
+      end_investigation_group: {
+        Args: { p_group_id: string };
+        Returns: void;
+      };
+      list_investigation_groups: {
+        Args: { p_investigation_id: string };
+        Returns: Array<{
+          id: string;
+          investigation_id: string;
+          leader_id: string;
+          leader_handle: string | null;
+          leader_display_name: string | null;
+          leader_avatar_url: string | null;
+          zone: string;
+          created_at: string;
+          ended_at: string | null;
+          member_count: number;
+        }>;
       };
     };
   };

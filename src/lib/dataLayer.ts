@@ -49,6 +49,7 @@ export function caseRowToCaseFile(
     logs: logs.map(logRowToLogEntry),
     sealed: row.sealed,
     investigationId: (row as any).investigation_id ?? undefined,
+    groupId: (row as any).group_id ?? undefined,
   };
 }
 
@@ -2671,6 +2672,121 @@ export async function setCaseInvestigation(
   const { error } = await supabase
     .from('cases')
     .update({ investigation_id: investigationId })
+    .eq('id', caseId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// ============================================================
+// INVESTIGATION GROUPS (step 25 / Path II)
+// ============================================================
+// Smaller parties within an investigation. Leader announces a group
+// with a zone name; team members self-select to join. Each member
+// still seals their own case; the case auto-links to whichever
+// group they're in at seal time (or to no group if "going solo").
+
+export type InvestigationGroupRow = {
+  id: string;
+  investigation_id: string;
+  leader_id: string;
+  leader_handle: string | null;
+  leader_display_name: string | null;
+  leader_avatar_url: string | null;
+  zone: string;
+  created_at: string;
+  ended_at: string | null;
+  member_count: number;
+};
+
+/** Create a new group inside an investigation. Caller is the leader. */
+export async function createInvestigationGroup(
+  investigationId: string,
+  zone: string
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const trimmedZone = zone.trim();
+  if (!trimmedZone) return { ok: false, error: 'Group name is required.' };
+  if (trimmedZone.length > 80) return { ok: false, error: 'Group name is too long (80 max).' };
+  const { data, error } = await supabase.rpc('create_investigation_group', {
+    p_investigation_id: investigationId,
+    p_zone: trimmedZone,
+  });
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'No id returned' };
+  return { ok: true, id: data as string };
+}
+
+/** Join an existing group as the caller. Moves them out of any prior group. */
+export async function joinInvestigationGroup(
+  groupId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc('join_investigation_group', {
+    p_group_id: groupId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Leave whichever group the caller is in, for this investigation.
+ * They become "solo" again within the umbrella. */
+export async function leaveInvestigationGroup(
+  investigationId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc('leave_investigation_group', {
+    p_investigation_id: investigationId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Leader (or team owner) ends a group. Member group_ids stay attached
+ * for historical attribution; they just can't join the group anymore. */
+export async function endInvestigationGroup(
+  groupId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc('end_investigation_group', {
+    p_group_id: groupId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** List all groups for an investigation, with leader info and member counts. */
+export async function listInvestigationGroups(
+  investigationId: string
+): Promise<InvestigationGroupRow[]> {
+  const { data, error } = await supabase.rpc('list_investigation_groups', {
+    p_investigation_id: investigationId,
+  });
+  if (error) {
+    console.warn('[listInvestigationGroups]', error.message);
+    return [];
+  }
+  return (data ?? []) as InvestigationGroupRow[];
+}
+
+/** Get the caller's current group for an investigation, or null. */
+export async function fetchMyInvestigationGroup(
+  investigationId: string,
+  userId: string
+): Promise<{ group_id: string | null }> {
+  const { data, error } = await supabase
+    .from('investigation_members')
+    .select('group_id')
+    .eq('investigation_id', investigationId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error || !data) return { group_id: null };
+  return { group_id: (data as any).group_id ?? null };
+}
+
+/** Link an existing case to a group (or unlink with null). */
+export async function setCaseGroup(
+  caseId: string,
+  groupId: string | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('cases')
+    .update({ group_id: groupId })
     .eq('id', caseId);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
