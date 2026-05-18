@@ -24,8 +24,10 @@ import Notifications from './Notifications';
 import InvestigationView from './InvestigationView';
 import NotFound from './NotFound';
 import InvestigationsBanner from '../components/InvestigationsBanner';
+import HuntDraftRecoveryBanner from '../components/HuntDraftRecoveryBanner';
 import { useAuth } from '../lib/useAuth';
 import { useHauntStore } from '../store/useHauntStore';
+import { useHuntDraftSync } from '../lib/useHuntDraftSync';
 import { SUPABASE_CONFIGURED } from '../lib/supabase';
 import { Loader2 } from 'lucide-react';
 
@@ -33,6 +35,11 @@ export default function AppShell() {
   const location = useLocation();
   const fullBleed = location.pathname === '/app/atlas';
   const { status, profile } = useAuth();
+
+  // Step 41: backup the active hunt to the server every time it
+  // changes (debounced). Lets users recover from a dead phone /
+  // cleared browser without losing logged observations.
+  useHuntDraftSync();
 
   // Mirror the authenticated profile into the local store so the existing
   // app code that reads useHauntStore().user keeps working.
@@ -96,6 +103,7 @@ export default function AppShell() {
     <div className="h-[100dvh] bg-black text-white flex flex-col">
       <Navbar />
       <InvestigationsBanner />
+      <HuntDraftRecoveryBanner />
       <div
         className={
           fullBleed
