@@ -19,6 +19,7 @@ import {
   type LogEntryPhotoRow,
 } from '../lib/dataLayer';
 import { MAX_PHOTOS_PER_LOG } from '../lib/imageProcess';
+import { SAMPLE_CASE, isSampleCaseId } from '../lib/sampleCase';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/useAuth';
 import {
@@ -39,6 +40,7 @@ import {
   AlertTriangle,
   AlertCircle,
   Plus,
+  Sparkles,
 } from 'lucide-react';
 
 function formatDateTime(iso: string) {
@@ -93,8 +95,14 @@ export default function CaseView() {
   const currentUser = useHauntStore((s) => s.user);
   const updateCaseVisibility = useHauntStore((s) => s.updateCaseVisibility);
 
+  // Sample case is a synthetic CaseFile that lives in JS only. When the
+  // URL is /case/sample we serve it from a constant; the rest of the
+  // page renders normally (read-only since the user isn't its owner).
+  const isSample = isSampleCaseId(id);
+
   // Local cache first; fall back to Supabase fetch if missing.
-  const localCase = cases.find((c) => c.id === id);
+  // For the sample case we substitute the hardcoded CaseFile.
+  const localCase = isSample ? SAMPLE_CASE : cases.find((c) => c.id === id);
   const [remoteCase, setRemoteCase] = useState<typeof localCase | null>(null);
   const [remoteOwnerId, setRemoteOwnerId] = useState<string | null>(null);
   const [fetching, setFetching] = useState(!localCase);
@@ -185,7 +193,7 @@ export default function CaseView() {
 
   // Step 18: load photos for this case.
   useEffect(() => {
-    if (!id) return;
+    if (!id || isSample) return;
     let cancelled = false;
     (async () => {
       try {
@@ -617,6 +625,19 @@ export default function CaseView() {
       </div>
 
       <div className="max-w-5xl mx-auto px-6 py-10">
+        {isSample && (
+          <div className="bg-amber-500/5 border border-amber-500/30 rounded-2xl p-4 mb-6 flex items-start gap-3">
+            <Sparkles className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-amber-300 mb-1">
+                Sample case
+              </div>
+              <p className="text-xs text-amber-200/80">
+                This is an example of what a sealed hunt looks like in HauntLog. Your real cases will appear in your Vault after you finish your first hunt.
+              </p>
+            </div>
+          </div>
+        )}
         {exportError && (
           <div className="bg-red-950/40 border border-red-500/30 rounded-xl p-3 text-sm text-red-300 mb-4 flex items-start gap-x-2">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -831,13 +852,15 @@ export default function CaseView() {
           entries.
         </div>
 
-        <div className="mt-8">
-          <Comments
-            caseId={caseFile.id}
-            caseOwnerId={caseOwnerProfileId}
-            visibility={caseFile.visibility}
-          />
-        </div>
+        {!isSample && (
+          <div className="mt-8">
+            <Comments
+              caseId={caseFile.id}
+              caseOwnerId={caseOwnerProfileId}
+              visibility={caseFile.visibility}
+            />
+          </div>
+        )}
 
         <div className="mt-12 text-center text-xs font-mono text-white/30 tracking-widest">
           SEALED · CASE FILE #{caseFile.id}

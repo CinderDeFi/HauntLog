@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 
 type Filter = 'all' | Visibility;
@@ -259,21 +260,66 @@ export default function Vault() {
       )}
 
       {cases.length === 0 && (
-        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-12 text-center">
-          <div className="text-xs font-mono text-white/40 tracking-widest mb-4">
-            // VAULT IS EMPTY
+        <div>
+          {/* Primary empty state: 3-step explainer */}
+          <div className="bg-zinc-900 border border-white/10 rounded-3xl p-8 md:p-12 text-center mb-6">
+            <div className="text-xs font-mono text-haunt-red tracking-widest mb-4">
+              // YOUR VAULT IS EMPTY
+            </div>
+            <h2 className="text-2xl md:text-3xl font-medium mb-3 tracking-tighter">
+              This is where your evidence lives.
+            </h2>
+            <p className="text-white/60 mb-8 max-w-md mx-auto text-sm md:text-base">
+              Every hunt you finish becomes a sealed case file with a timestamp, location, gear log, and verdict you can share or export.
+            </p>
+
+            {/* 3-step row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 max-w-2xl mx-auto mb-8 text-left">
+              <div className="bg-black border border-white/10 rounded-2xl p-4">
+                <div className="font-mono text-haunt-red text-xs mb-2">01 · HUNT</div>
+                <div className="text-sm font-medium mb-1">Pick a place. Pick your gear.</div>
+                <div className="text-xs text-white/50">Atlas has verified venues — or use a custom location.</div>
+              </div>
+              <div className="bg-black border border-white/10 rounded-2xl p-4">
+                <div className="font-mono text-haunt-red text-xs mb-2">02 · LOG</div>
+                <div className="text-sm font-medium mb-1">Tap when your gear reacts.</div>
+                <div className="text-xs text-white/50">Each event is timestamped. Add photos and notes inline.</div>
+              </div>
+              <div className="bg-black border border-white/10 rounded-2xl p-4">
+                <div className="font-mono text-haunt-red text-xs mb-2">03 · SEAL</div>
+                <div className="text-sm font-medium mb-1">Lock the case. Share or export.</div>
+                <div className="text-xs text-white/50">A sealed case can be sent as a link, PDF, or kept private.</div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate('/app/hunt/new')}
+              className="bg-haunt-red hover:bg-red-600 text-white px-8 py-3 rounded-xl font-mono tracking-widest text-sm transition-colors inline-flex items-center gap-x-2"
+            >
+              START YOUR FIRST HUNT →
+            </button>
           </div>
-          <h2 className="text-3xl font-medium mb-2">No cases yet.</h2>
-          <p className="text-white/60 mb-8">
-            Start your first hunt — log what your gear catches (or what you notice), then seal the
-            file.
-          </p>
-          <button
-            onClick={() => navigate('/app/hunt/new')}
-            className="bg-haunt-red hover:bg-red-600 text-white px-8 py-3 rounded-xl font-mono tracking-widest text-sm transition-colors"
-          >
-            START A HUNT →
-          </button>
+
+          {/* Sample case preview */}
+          <div className="bg-amber-500/5 border border-amber-500/30 rounded-3xl p-6">
+            <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-mono text-amber-300 tracking-widest mb-1 inline-flex items-center gap-x-1.5">
+                  <Sparkles className="w-3 h-3" /> SAMPLE
+                </div>
+                <h3 className="text-lg font-medium mb-1">See what a sealed case looks like</h3>
+                <p className="text-sm text-white/60">
+                  Five events across 78 minutes at a haunted theatre. Real format, not a real hunt.
+                </p>
+              </div>
+              <Link
+                to="/case/sample"
+                className="px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-200 text-xs font-mono tracking-widest whitespace-nowrap inline-flex items-center gap-x-2"
+              >
+                VIEW SAMPLE →
+              </Link>
+            </div>
+          </div>
         </div>
       )}
 

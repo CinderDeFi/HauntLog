@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   X as XIcon,
   Users,
+  Sparkles,
 } from 'lucide-react';
 
 function formatTimeOfDay(iso: string): string {
@@ -54,20 +55,59 @@ export default function LiveHunt() {
 
   if (!activeHunt) {
     return (
-      <div className="max-w-2xl mx-auto text-center py-20">
-        <div className="text-xs font-mono text-white/40 tracking-widest mb-4">
-          // NO ACTIVE HUNT
+      <div className="max-w-3xl mx-auto py-10">
+        <div className="text-center mb-10">
+          <div className="text-xs font-mono text-white/40 tracking-widest mb-4">
+            // NO ACTIVE HUNT
+          </div>
+          <h1 className="text-4xl md:text-5xl font-medium tracking-tighter mb-3">
+            Ready when you are.
+          </h1>
+          <p className="text-white/60 max-w-md mx-auto text-sm md:text-base">
+            Start a new hunt, pick your visibility, and we'll keep the timeline second-by-second until you seal the file.
+          </p>
         </div>
-        <h1 className="text-5xl font-medium tracking-tighter mb-4">Ready when you are.</h1>
-        <p className="text-white/60 mb-10">
-          Start a new hunt, pick your visibility, and we'll keep the timeline.
-        </p>
-        <button
-          onClick={() => navigate('/app/hunt/new')}
-          className="bg-haunt-red hover:bg-red-600 text-white px-10 py-5 rounded-2xl font-mono tracking-widest text-lg transition-colors active:scale-[0.98]"
-        >
-          START A HUNT →
-        </button>
+
+        {/* 3-step row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-10">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-5">
+            <div className="font-mono text-haunt-red text-xs mb-2">01 · SETUP</div>
+            <div className="text-sm font-medium mb-1">Pick a place + your kit</div>
+            <div className="text-xs text-white/50">
+              Pick a verified venue or any custom location. Choose the gear you brought.
+            </div>
+          </div>
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-5">
+            <div className="font-mono text-haunt-red text-xs mb-2">02 · LOG</div>
+            <div className="text-sm font-medium mb-1">Tap when things happen</div>
+            <div className="text-xs text-white/50">
+              Every reading, voice capture, or personal observation lands on the timeline.
+            </div>
+          </div>
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-5">
+            <div className="font-mono text-haunt-red text-xs mb-2">03 · SEAL</div>
+            <div className="text-sm font-medium mb-1">Lock it. Share it.</div>
+            <div className="text-xs text-white/50">
+              Title it, summarize, set visibility. The result is a permanent case file.
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-y-3">
+          <button
+            onClick={() => navigate('/app/hunt/new')}
+            className="bg-haunt-red hover:bg-red-600 text-white px-10 py-5 rounded-2xl font-mono tracking-widest text-lg transition-colors active:scale-[0.98]"
+          >
+            START A HUNT →
+          </button>
+          <Link
+            to="/app/hunt/new?starter=1"
+            className="text-xs font-mono text-white/50 hover:text-white/80 tracking-widest inline-flex items-center gap-x-1.5"
+          >
+            <Sparkles className="w-3 h-3" />
+            OR USE A SAMPLE SETUP
+          </Link>
+        </div>
       </div>
     );
   }

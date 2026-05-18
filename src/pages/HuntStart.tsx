@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   useHauntStore,
   EQUIPMENT_CATALOG,
@@ -31,6 +31,7 @@ import {
   User as UserIcon,
   Users as UsersIcon,
   BadgeCheck,
+  Sparkles,
 } from 'lucide-react';
 
 type Step = 'visibility' | 'location' | 'equipment' | 'review';
@@ -88,6 +89,20 @@ export default function HuntStart() {
   const [selectedEquipment, setSelectedEquipment] = useState<Set<EquipmentId>>(new Set());
   const [customLabel, setCustomLabel] = useState('');
   const [customMap, setCustomMap] = useState<Record<string, string>>({});
+
+  // Starter setup: when arriving via ?starter=1 (from the LiveHunt empty
+  // state), prefill some reasonable defaults so a first-time user can
+  // get a feel for the flow without picking everything from scratch.
+  // Runs once on mount only.
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('starter') === '1') {
+      setNewVenueName('Old Lyon Theatre (sample)');
+      setZone('Stage left');
+      setSelectedEquipment(new Set<EquipmentId>(['k2', 'rempod', 'sb7', 'thermal']));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Visibility helpers
   const requiresGps = visibility !== 'private';
@@ -182,12 +197,28 @@ export default function HuntStart() {
     navigate('/app/live');
   };
 
+  const isStarter = searchParams.get('starter') === '1';
+
   return (
     <div className="max-w-3xl mx-auto w-full">
       <h1 className="text-3xl md:text-5xl font-medium tracking-tighter mb-2">START A HUNT</h1>
       <p className="text-white/60 mb-6 md:mb-8 text-sm md:text-base">
         A few quick choices. Equipment is optional — you can log pure observations too.
       </p>
+
+      {isStarter && (
+        <div className="bg-amber-500/5 border border-amber-500/30 rounded-2xl p-4 mb-6 flex items-start gap-3">
+          <Sparkles className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-amber-300 mb-1">
+              Sample setup loaded
+            </div>
+            <p className="text-xs text-amber-200/80">
+              Location, zone, and gear are pre-filled so you can walk through the flow. Change anything you want — your first hunt will save as a real case in your Vault.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* STEP RAIL — compact on mobile (numbered dots + current label),
           full pills on desktop. */}

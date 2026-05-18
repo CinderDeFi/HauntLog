@@ -17,6 +17,7 @@ import {
   Users as UsersIcon,
   BadgeCheck,
   Globe,
+  Sparkles,
 } from 'lucide-react';
 
 type Filter = 'all' | 'following';
@@ -161,12 +162,51 @@ export default function Feed() {
       )}
 
       {!loading && filter === 'all' && visible.length === 0 && (
-        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-12 text-center">
-          <Activity className="w-10 h-10 text-white/30 mx-auto mb-3" />
-          <h2 className="text-2xl font-medium mb-2">It's quiet out there.</h2>
-          <p className="text-white/60 text-sm">
-            No public cases yet. Seal one of your own to start the feed.
-          </p>
+        <div className="space-y-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-3xl p-8 md:p-12 text-center">
+            <Activity className="w-10 h-10 text-white/30 mx-auto mb-3" />
+            <h2 className="text-xl md:text-2xl font-medium mb-2">It's quiet out there.</h2>
+            <p className="text-white/60 text-sm mb-5 max-w-md mx-auto">
+              No public cases on the feed yet. Seal one of your own to start it — or follow a few investigators on the Discover page.
+            </p>
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <Link
+                to="/app/hunt/new"
+                className="bg-haunt-red hover:bg-red-600 text-white px-5 py-2.5 rounded-xl font-mono tracking-widest text-xs"
+              >
+                START A HUNT
+              </Link>
+              <Link
+                to="/app/discover"
+                className="bg-white/5 hover:bg-white/10 text-white/70 px-5 py-2.5 rounded-xl font-mono tracking-widest text-xs"
+              >
+                FIND INVESTIGATORS
+              </Link>
+            </div>
+          </div>
+
+          {/* Sample case link */}
+          <div className="bg-amber-500/5 border border-amber-500/30 rounded-3xl p-5">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-mono text-amber-300 tracking-widest mb-1 inline-flex items-center gap-x-1.5">
+                  <Sparkles className="w-3 h-3" /> SAMPLE
+                </div>
+                <div className="text-sm font-medium mb-0.5">
+                  Curious what a real case looks like?
+                </div>
+                <div className="text-xs text-white/60">
+                  Five events at a haunted theatre. Real format, not a real hunt.
+                </div>
+              </div>
+              <Link
+                to="/case/sample"
+                className="px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-200 text-xs font-mono tracking-widest whitespace-nowrap"
+              >
+                VIEW SAMPLE →
+              </Link>
+            </div>
+          </div>
         </div>
       )}
 
