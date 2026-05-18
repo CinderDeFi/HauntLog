@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import PublicNav from '../components/PublicNav';
+import PhotoLightbox from '../components/PhotoLightbox';
 import type { ProfileRow } from '../lib/database.types';
 import {
   fetchPublicCasesByHandle,
@@ -70,6 +71,9 @@ export default function PublicProfile() {
 
   // Investigator stats — pulled from the view that already powers Discover.
   const [stats, setStats] = useState<InvestigatorListing | null>(null);
+
+  // Lightbox state for blowing up the avatar.
+  const [avatarZoom, setAvatarZoom] = useState<string | null>(null);
 
   const isOwnProfile = !!authUser && !!profile && authUser.id === profile.id;
 
@@ -206,14 +210,21 @@ export default function PublicProfile() {
             </div>
 
             <div className="flex items-start gap-5 mb-6 flex-wrap">
-              {/* Avatar */}
+              {/* Avatar — clickable to zoom if there's a real image */}
               <div className="shrink-0">
                 {profile.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt={profile.display_name}
-                    className="w-24 h-24 rounded-3xl object-cover border border-white/10"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setAvatarZoom(profile.avatar_url)}
+                    aria-label="View avatar full size"
+                    className="block rounded-3xl overflow-hidden hover:ring-2 hover:ring-haunt-red/60 transition-all"
+                  >
+                    <img
+                      src={profile.avatar_url}
+                      alt={profile.display_name}
+                      className="w-24 h-24 rounded-3xl object-cover border border-white/10"
+                    />
+                  </button>
                 ) : (
                   <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-purple-500 to-red-500 flex items-center justify-center text-white text-2xl font-bold">
                     {profile.display_name
@@ -435,6 +446,16 @@ export default function PublicProfile() {
           </>
         )}
       </div>
+
+      {/* Avatar zoom lightbox */}
+      {avatarZoom && (
+        <PhotoLightbox
+          urls={[avatarZoom]}
+          index={0}
+          onClose={() => setAvatarZoom(null)}
+          onNavigate={() => {}}
+        />
+      )}
     </div>
   );
 }

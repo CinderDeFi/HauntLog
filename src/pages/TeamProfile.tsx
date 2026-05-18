@@ -15,6 +15,7 @@ import type { CaseFile } from '../store/useHauntStore';
 import SocialLinks from '../components/SocialLinks';
 import StatStrip, { formatCount } from '../components/StatStrip';
 import PublicNav from '../components/PublicNav';
+import PhotoLightbox from '../components/PhotoLightbox';
 import {
   ArrowLeft,
   Users,
@@ -65,6 +66,9 @@ export default function TeamProfile() {
     'loading'
   );
   const [error, setError] = useState<string | null>(null);
+
+  // Lightbox state for blowing up the team logo.
+  const [logoZoom, setLogoZoom] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) {
@@ -159,11 +163,18 @@ export default function TeamProfile() {
             <div className="flex items-start gap-5 mb-6 flex-wrap">
               <div className="shrink-0">
                 {team.logo_url ? (
-                  <img
-                    src={team.logo_url}
-                    alt={team.name}
-                    className="w-24 h-24 rounded-3xl object-cover border border-white/10"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setLogoZoom(team.logo_url)}
+                    aria-label="View team logo full size"
+                    className="block rounded-3xl overflow-hidden hover:ring-2 hover:ring-haunt-red/60 transition-all"
+                  >
+                    <img
+                      src={team.logo_url}
+                      alt={team.name}
+                      className="w-24 h-24 rounded-3xl object-cover border border-white/10"
+                    />
+                  </button>
                 ) : (
                   <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-haunt-red to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
                     {team.name
@@ -380,6 +391,16 @@ export default function TeamProfile() {
           </>
         )}
       </div>
+
+      {/* Team logo zoom lightbox */}
+      {logoZoom && (
+        <PhotoLightbox
+          urls={[logoZoom]}
+          index={0}
+          onClose={() => setLogoZoom(null)}
+          onNavigate={() => {}}
+        />
+      )}
     </div>
   );
 }
