@@ -456,6 +456,7 @@ export default function HuntStart() {
     }
 
     startHunt({
+      userId: authUser?.id,
       venueId: selectedVenue?.id,
       location,
       zone: finalZone,
