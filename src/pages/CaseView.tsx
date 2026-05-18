@@ -22,6 +22,7 @@ import {
   getSignedAudioUrls,
   deleteLogAudio,
   fetchInvestigation,
+  listInvestigationGroups,
   type LogEntryPhotoRow,
   type LogEntryAudioRow,
   type InvestigationRow,
@@ -54,6 +55,7 @@ import {
   Share2,
   Pencil,
   Radio,
+  UsersRound,
 } from 'lucide-react';
 
 function formatDateTime(iso: string) {
@@ -279,20 +281,32 @@ export default function CaseView() {
 
   // Step 24: hydrate investigation parent if this case is linked to one.
   // Sample case is excluded (it's hardcoded, no DB record).
+  const [groupZone, setGroupZone] = useState<string | null>(null);
   useEffect(() => {
     if (!caseFile?.investigationId || isSample) {
       setInvestigation(null);
+      setGroupZone(null);
       return;
     }
     let cancelled = false;
     (async () => {
       const inv = await fetchInvestigation(caseFile.investigationId!);
       if (!cancelled) setInvestigation(inv);
+      // Step 25: if the case is also tagged to a group, find its zone label.
+      if (caseFile.groupId) {
+        const groups = await listInvestigationGroups(caseFile.investigationId!);
+        if (!cancelled) {
+          const g = groups.find((x) => x.id === caseFile.groupId);
+          setGroupZone(g?.zone ?? null);
+        }
+      } else {
+        if (!cancelled) setGroupZone(null);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [caseFile?.investigationId, isSample]);
+  }, [caseFile?.investigationId, caseFile?.groupId, isSample]);
 
   /** Open the lightbox for a specific log entry, starting at the given photo index. */
   const openLightboxForLog = (logId: string, startIndex: number) => {
@@ -871,6 +885,17 @@ export default function CaseView() {
                   PART OF {(investigation.name ?? investigation.location_name).toUpperCase()}
                 </span>
               </Link>
+            )}
+            {groupZone && (
+              <div
+                className="font-mono text-[10px] md:text-xs bg-white/5 border border-white/10 px-3 md:px-4 py-1.5 rounded-2xl tracking-widest inline-flex items-center gap-x-2 text-white/70"
+                title="Logged as part of this group"
+              >
+                <UsersRound className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                <span className="truncate max-w-[180px] md:max-w-[280px]">
+                  GROUP · {groupZone.toUpperCase()}
+                </span>
+              </div>
             )}
           </div>
           <div className="text-[10px] md:text-xs text-white/40 font-mono tracking-widest">

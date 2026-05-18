@@ -7,7 +7,14 @@ import {
   joinInvestigationById,
   leaveInvestigation,
   closeInvestigation,
+  listInvestigationGroups,
+  createInvestigationGroup,
+  joinInvestigationGroup,
+  leaveInvestigationGroup,
+  endInvestigationGroup,
+  fetchMyInvestigationGroup,
   type InvestigationRow,
+  type InvestigationGroupRow,
 } from '../lib/dataLayer';
 import { fetchMyTeams } from '../lib/teamActions';
 import { useAuth } from '../lib/useAuth';
@@ -24,6 +31,9 @@ import {
   ChevronLeft,
   FileText,
   Loader2,
+  UsersRound,
+  Plus,
+  Crown,
 } from 'lucide-react';
 
 type MemberRow = {
@@ -62,6 +72,14 @@ export default function InvestigationView() {
   const [joining, setJoining] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  // Step 25: groups
+  const [groups, setGroups] = useState<InvestigationGroupRow[]>([]);
+  const [myGroupId, setMyGroupId] = useState<string | null>(null);
+  const [showGroupCreate, setShowGroupCreate] = useState(false);
+  const [newGroupZone, setNewGroupZone] = useState('');
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupActionPending, setGroupActionPending] = useState<string | null>(null);
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -76,17 +94,22 @@ export default function InvestigationView() {
           return;
         }
         setInv(i);
-        const [m, c] = await Promise.all([
+        const [m, c, g] = await Promise.all([
           fetchInvestigationMembers(id),
           fetchInvestigationCases(id),
+          listInvestigationGroups(id),
         ]);
         if (cancelled) return;
         setMembers(m);
         setCases(c);
+        setGroups(g);
         if (authUser) {
           setIAmMember(
             m.some((x) => x.user_id === authUser.id && x.left_at === null)
           );
+          // Fetch my current group_id within this investigation.
+          const mine = await fetchMyInvestigationGroup(id, authUser.id);
+          if (!cancelled) setMyGroupId(mine.group_id);
           // Check if the viewer is an owner/admin of the parent team.
           const teams = await fetchMyTeams(authUser.id);
           const t = teams.find((tm) => tm.team_id === i.team_id);
@@ -192,12 +215,87 @@ export default function InvestigationView() {
     }
   };
 
+  // ------- Step 25: group handlers -------
+  const refreshGroups = async () => {
+    if (!id || !authUser) return;
+    const [g, mine] = await Promise.all([
+      listInvestigationGroups(id),
+      fetchMyInvestigationGroup(id, authUser.id),
+    ]);
+    setGroups(g);
+    setMyGroupId(mine.group_id);
+  };
+
+  const handleCreateGroup = async () => {
+    if (!id) return;
+    const zone = newGroupZone.trim();
+    if (!zone) {
+      toast.error('Give the group a zone name');
+      return;
+    }
+    setCreatingGroup(true);
+    const res = await createInvestigationGroup(id, zone);
+    setCreatingGroup(false);
+    if (!res.ok) {
+      toast.error('Could not create group', { description: res.error });
+      return;
+    }
+    toast.success(`"${zone}" created`);
+    setShowGroupCreate(false);
+    setNewGroupZone('');
+    await refreshGroups();
+  };
+
+  const handleJoinGroup = async (groupId: string) => {
+    setGroupActionPending(groupId);
+    const res = await joinInvestigationGroup(groupId);
+    setGroupActionPending(null);
+    if (!res.ok) {
+      toast.error('Could not join group', { description: res.error });
+      return;
+    }
+    toast.success('Joined group');
+    await refreshGroups();
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!id) return;
+    setGroupActionPending('leave');
+    const res = await leaveInvestigationGroup(id);
+    setGroupActionPending(null);
+    if (!res.ok) {
+      toast.error('Could not leave group', { description: res.error });
+      return;
+    }
+    toast.success('Going solo');
+    await refreshGroups();
+  };
+
+  const handleEndGroup = async (groupId: string, zone: string) => {
+    if (!confirm(`End the "${zone}" group?`)) return;
+    setGroupActionPending(groupId);
+    const res = await endInvestigationGroup(groupId);
+    setGroupActionPending(null);
+    if (!res.ok) {
+      toast.error('Could not end group', { description: res.error });
+      return;
+    }
+    toast.success('Group ended');
+    await refreshGroups();
+  };
+
   const startHunt = () => {
     // Navigate to HuntStart with the investigation id and prefilled location.
+    // If the user is currently in a group, pass that through too.
     const params = new URLSearchParams();
     params.set('investigation', inv.id);
     if (inv.venue_id) params.set('venue', inv.venue_id);
     params.set('location', inv.location_name);
+    if (myGroupId) {
+      params.set('group', myGroupId);
+      const g = groups.find((x) => x.id === myGroupId);
+      if (g) params.set('zone', g.zone);
+    }
     navigate(`/app/hunt/new?${params.toString()}`);
   };
 
@@ -347,6 +445,187 @@ export default function InvestigationView() {
           )}
         </div>
       </div>
+
+      {/* Step 25: Groups — sub-parties within the investigation */}
+      {iAmMember && (
+        <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+            <div className="flex items-center gap-x-2">
+              <UsersRound className="w-4 h-4 text-white/40" />
+              <div className="text-xs font-mono text-white/40 tracking-widest">
+                GROUPS · {groups.filter((g) => !g.ended_at).length} ACTIVE
+              </div>
+            </div>
+            {inv.status === 'open' && !showGroupCreate && (
+              <button
+                onClick={() => setShowGroupCreate(true)}
+                className="inline-flex items-center gap-x-1.5 text-xs font-mono tracking-widest text-haunt-red hover:text-white"
+              >
+                <Plus className="w-3 h-3" /> ANNOUNCE A GROUP
+              </button>
+            )}
+          </div>
+
+          {/* My status row */}
+          {inv.status === 'open' && (
+            <div className="bg-black/40 border border-white/10 rounded-2xl px-3 py-2 mb-3 text-xs flex items-center justify-between gap-3 flex-wrap">
+              <div className="text-white/60">
+                {myGroupId
+                  ? (() => {
+                      const g = groups.find((x) => x.id === myGroupId);
+                      return g ? (
+                        <>
+                          You're with <strong className="text-white">{g.zone}</strong>
+                        </>
+                      ) : (
+                        'You are in a group'
+                      );
+                    })()
+                  : (
+                    <>
+                      <span className="text-white">Going solo</span> — tap a group below to join one.
+                    </>
+                  )}
+              </div>
+              {myGroupId && (
+                <button
+                  onClick={handleLeaveGroup}
+                  disabled={groupActionPending === 'leave'}
+                  className="text-xs font-mono tracking-widest text-white/60 hover:text-white disabled:opacity-40"
+                >
+                  {groupActionPending === 'leave' ? 'LEAVING…' : 'GO SOLO'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Inline create form */}
+          {showGroupCreate && (
+            <div className="bg-haunt-red/5 border border-haunt-red/30 rounded-2xl p-3 mb-3 space-y-2">
+              <label className="block text-[10px] font-mono text-white/40 tracking-widest">
+                ZONE / GROUP NAME
+              </label>
+              <input
+                value={newGroupZone}
+                onChange={(e) => setNewGroupZone(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateGroup()}
+                placeholder='e.g. "Basement sweep" or "Third floor & bell tower"'
+                maxLength={80}
+                className="w-full bg-black border border-white/10 rounded-xl px-3 py-2 text-sm focus:border-haunt-red outline-none"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreateGroup}
+                  disabled={creatingGroup || !newGroupZone.trim()}
+                  className="bg-haunt-red hover:bg-red-600 disabled:opacity-30 text-white px-4 py-2 rounded-xl text-xs font-mono tracking-widest inline-flex items-center gap-x-1.5"
+                >
+                  {creatingGroup ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <UsersRound className="w-3 h-3" />
+                  )}
+                  CREATE
+                </button>
+                <button
+                  onClick={() => {
+                    setShowGroupCreate(false);
+                    setNewGroupZone('');
+                  }}
+                  className="text-white/60 hover:text-white px-3 py-2 text-xs font-mono tracking-widest"
+                >
+                  CANCEL
+                </button>
+              </div>
+              <div className="text-[10px] text-white/40">
+                You'll be the leader. Others can self-select to join your group.
+              </div>
+            </div>
+          )}
+
+          {/* Group list */}
+          {groups.length === 0 ? (
+            <div className="text-sm text-white/40 text-center py-4">
+              {inv.status === 'open'
+                ? 'No groups yet. Announce one if your team is splitting up.'
+                : 'No groups were formed during this investigation.'}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {groups.map((g) => {
+                const isMine = myGroupId === g.id;
+                const isLeader = authUser?.id === g.leader_id;
+                const ended = !!g.ended_at;
+                return (
+                  <div
+                    key={g.id}
+                    className={`rounded-2xl p-3 border ${
+                      isMine
+                        ? 'bg-haunt-red/10 border-haunt-red/50'
+                        : ended
+                        ? 'bg-black/30 border-white/5 opacity-60'
+                        : 'bg-black border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-x-2 mb-0.5">
+                          <span className="text-sm font-medium text-white truncate">
+                            {g.zone}
+                          </span>
+                          {isLeader && (
+                            <Crown className="w-3 h-3 text-yellow-400 shrink-0" />
+                          )}
+                          {ended && (
+                            <span className="text-[10px] font-mono text-white/40 tracking-widest">
+                              ENDED
+                            </span>
+                          )}
+                          {isMine && !ended && (
+                            <span className="text-[10px] font-mono text-haunt-red tracking-widest">
+                              YOU'RE IN
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] font-mono text-white/40 tracking-widest">
+                          LED BY @
+                          {g.leader_handle ?? '?'} · {g.member_count}{' '}
+                          {g.member_count === 1 ? 'MEMBER' : 'MEMBERS'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {inv.status === 'open' && !ended && !isMine && (
+                          <button
+                            onClick={() => handleJoinGroup(g.id)}
+                            disabled={groupActionPending === g.id}
+                            className="bg-white/10 hover:bg-haunt-red text-white px-3 py-1.5 rounded-lg text-xs font-mono tracking-widest disabled:opacity-50"
+                          >
+                            {groupActionPending === g.id
+                              ? 'JOINING…'
+                              : myGroupId
+                              ? 'SWITCH IN'
+                              : 'JOIN'}
+                          </button>
+                        )}
+                        {(isLeader || iCanManageTeam) && !ended && inv.status === 'open' && (
+                          <button
+                            onClick={() => handleEndGroup(g.id, g.zone)}
+                            disabled={groupActionPending === g.id}
+                            className="text-white/40 hover:text-red-400 text-xs font-mono tracking-widest disabled:opacity-40"
+                            title="End this group"
+                          >
+                            END
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Members */}
       <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 mb-6">

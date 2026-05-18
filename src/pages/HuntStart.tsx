@@ -141,6 +141,14 @@ export default function HuntStart() {
   const investigationParam = searchParams.get('investigation');
   const investigationLocationParam = searchParams.get('location');
   const investigationVenueParam = searchParams.get('venue');
+  // Step 25: group umbrella. When set, hunt auto-links to a group too.
+  const groupParam = searchParams.get('group');
+  const groupZoneParam = searchParams.get('zone');
+
+  // GOING SOLO override: when set, the hunt is part of the investigation
+  // but NOT a specific group. Toggleable in-page so the user can flip
+  // their mind without going back.
+  const [goingSolo, setGoingSolo] = useState(false);
 
   useEffect(() => {
     if (searchParams.get('starter') === '1') {
@@ -156,6 +164,11 @@ export default function HuntStart() {
       if (investigationVenueParam) {
         // If the investigation references a real venue id, select it.
         setSelectedVenueId(investigationVenueParam);
+      }
+      // Step 25: if the user is in a group, prefill the zone so it
+      // appears on their case file too.
+      if (groupZoneParam) {
+        setZone(groupZoneParam);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -307,6 +320,7 @@ export default function HuntStart() {
       teamName: selectedTeam?.team.name,
       teamSlug: selectedTeam?.team.slug,
       investigationId: investigationParam ?? undefined,
+      groupId: !goingSolo && groupParam ? groupParam : undefined,
     });
 
     navigate('/app/live');
@@ -337,21 +351,47 @@ export default function HuntStart() {
 
       {/* Investigation umbrella banner */}
       {investigationParam && (
-        <div className="bg-haunt-red/5 border border-haunt-red/30 rounded-2xl p-4 mb-6 flex items-start gap-3">
-          <Radio className="w-5 h-5 text-haunt-red shrink-0 mt-0.5" />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-haunt-red mb-1">
-              Hunting under a team investigation
+        <div className="bg-haunt-red/5 border border-haunt-red/30 rounded-2xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <Radio className="w-5 h-5 text-haunt-red shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-haunt-red mb-1">
+                Hunting under a team investigation
+              </div>
+              <p className="text-xs text-white/70">
+                Your sealed case will auto-link to{' '}
+                {investigationLocationParam ? (
+                  <strong>{investigationLocationParam}</strong>
+                ) : (
+                  'this investigation'
+                )}{' '}
+                so your team can see everyone's findings together.
+              </p>
+              {groupParam && groupZoneParam && (
+                <p className="text-xs text-white/70 mt-1">
+                  Group:{' '}
+                  <strong className="text-white">
+                    {goingSolo ? <s>{groupZoneParam}</s> : groupZoneParam}
+                  </strong>
+                  {goingSolo && (
+                    <span className="text-white/40"> (going solo)</span>
+                  )}
+                </p>
+              )}
             </div>
-            <p className="text-xs text-white/70">
-              Your sealed case will auto-link to{' '}
-              {investigationLocationParam ? (
-                <strong>{investigationLocationParam}</strong>
-              ) : (
-                'this investigation'
-              )}{' '}
-              so your team can see everyone's findings together.
-            </p>
+            {groupParam && (
+              <label className="shrink-0 inline-flex items-center gap-x-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={goingSolo}
+                  onChange={(e) => setGoingSolo(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-haunt-red"
+                />
+                <span className="text-[10px] font-mono tracking-widest text-white/70">
+                  GOING SOLO
+                </span>
+              </label>
+            )}
           </div>
         </div>
       )}
