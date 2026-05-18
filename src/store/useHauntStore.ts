@@ -180,6 +180,9 @@ export type CaseFile = {
   sealed: boolean;
   /** Step 24: when set, this case is part of a team investigation umbrella. */
   investigationId?: string;
+  /** Step 25: when set, this case was logged as part of a specific group
+   * (sub-party) within the investigation. */
+  groupId?: string;
 };
 
 export type ActiveHunt = {
@@ -201,6 +204,9 @@ export type ActiveHunt = {
   // Step 24: when set, this hunt was launched from an investigation
   // umbrella. On seal the resulting case auto-links to it.
   investigationId?: string;
+  // Step 25: when set, this hunt is part of a specific group within
+  // the investigation. On seal the case auto-links to it.
+  groupId?: string;
   logs: LogEntry[];
 };
 
@@ -257,6 +263,7 @@ type HauntState = {
     teamName?: string;
     teamSlug?: string;
     investigationId?: string;
+    groupId?: string;
   }) => { hunt: ActiveHunt; venue?: Venue; checkIn?: CheckIn };
 
   addLog: (entry: Omit<LogEntry, 'id'>) => void;
@@ -439,6 +446,7 @@ export const useHauntStore = create<HauntState>()(
           teamName: init.teamName,
           teamSlug: init.teamSlug,
           investigationId: init.investigationId,
+          groupId: init.groupId,
           logs: [],
         };
 
@@ -610,6 +618,13 @@ export const useHauntStore = create<HauntState>()(
             const linkRes = await dataLayer.setCaseInvestigation(id, h.investigationId);
             if (!linkRes.ok) {
               console.warn('[sealCase investigation link]', linkRes.error);
+            }
+            // Step 25: also link the group if the hunter was in one.
+            if (h.groupId) {
+              const groupRes = await dataLayer.setCaseGroup(id, h.groupId);
+              if (!groupRes.ok) {
+                console.warn('[sealCase group link]', groupRes.error);
+              }
             }
           } catch (e) {
             console.warn('[sealCase investigation link error]', e);
