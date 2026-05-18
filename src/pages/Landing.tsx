@@ -33,7 +33,7 @@ export default function Landing() {
             {!isSignedIn && (
               <Link
                 to="/auth/signin"
-                className="hidden md:inline-block px-6 py-3 text-white/80 hover:text-white text-sm font-medium"
+                className="px-2 md:px-6 py-2 md:py-3 text-white/70 hover:text-white text-xs md:text-sm font-medium tracking-wide whitespace-nowrap"
               >
                 SIGN IN
               </Link>
