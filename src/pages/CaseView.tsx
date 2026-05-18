@@ -8,6 +8,7 @@ import {
 } from '../store/useHauntStore';
 import { EquipmentDataDisplay } from '../components/EquipmentDataInput';
 import Comments from '../components/Comments';
+import CaseReactions from '../components/CaseReactions';
 import PhotoLightbox from '../components/PhotoLightbox';
 import AddPhotosModal from '../components/AddPhotosModal';
 import AddAudioModal from '../components/AddAudioModal';
@@ -1396,6 +1397,16 @@ export default function CaseView() {
 
         {!isSample && (
           <div className="mt-8 max-w-3xl mx-auto">
+            <CaseReactions
+              caseId={caseFile.id}
+              ownerId={caseOwnerProfileId}
+              visibility={caseFile.visibility}
+            />
+          </div>
+        )}
+
+        {!isSample && (
+          <div className="mt-6 max-w-3xl mx-auto">
             <Comments
               caseId={caseFile.id}
               caseOwnerId={caseOwnerProfileId}

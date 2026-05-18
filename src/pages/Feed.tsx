@@ -19,6 +19,10 @@ import {
   BadgeCheck,
   Globe,
   Sparkles,
+  Snowflake,
+  Eye,
+  Search,
+  HelpCircle,
 } from 'lucide-react';
 
 type Filter = 'all' | 'following';
@@ -367,7 +371,7 @@ function FeedCard({ c, now }: { c: FeedCase; now: number }) {
         </div>
       )}
 
-      <div className="flex items-center gap-x-4 pt-3 border-t border-white/5 text-[11px] font-mono text-white/60">
+      <div className="flex items-center gap-x-4 pt-3 border-t border-white/5 text-[11px] font-mono text-white/60 flex-wrap gap-y-1.5">
         <span>
           <span className="text-white font-medium">{c.logs.length}</span>{' '}
           {c.logs.length === 1 ? 'event' : 'events'}
@@ -378,6 +382,32 @@ function FeedCard({ c, now }: { c: FeedCase; now: number }) {
             <span className="text-white">{starred}</span> starred
           </span>
         )}
+        {/* Step 42: reaction signal — only the reactions that have at
+            least one count, shown as compact icon+number chips. */}
+        {c.reactionCounts.chilled ? (
+          <span className="inline-flex items-center gap-x-1 text-haunt-red/90">
+            <Snowflake className="w-3 h-3" />
+            <span>{c.reactionCounts.chilled}</span>
+          </span>
+        ) : null}
+        {c.reactionCounts.witnessed ? (
+          <span className="inline-flex items-center gap-x-1 text-cyan-300/90">
+            <Eye className="w-3 h-3" />
+            <span>{c.reactionCounts.witnessed}</span>
+          </span>
+        ) : null}
+        {c.reactionCounts.examine ? (
+          <span className="inline-flex items-center gap-x-1 text-white/70">
+            <Search className="w-3 h-3" />
+            <span>{c.reactionCounts.examine}</span>
+          </span>
+        ) : null}
+        {c.reactionCounts.skeptical ? (
+          <span className="inline-flex items-center gap-x-1 text-amber-300/90">
+            <HelpCircle className="w-3 h-3" />
+            <span>{c.reactionCounts.skeptical}</span>
+          </span>
+        ) : null}
         <span className="ml-auto text-white/40">#{c.id}</span>
       </div>
     </Link>
