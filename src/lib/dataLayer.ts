@@ -2176,3 +2176,20 @@ export async function fetchMyVenueSubmissions(
   }
   return (data ?? []) as VenueSubmissionRow[];
 }
+
+/**
+ * Toggle the starred flag on a single log entry. Owner-only via RLS
+ * on log_entries.update. Idempotent at the value level: passing the
+ * current value just makes it stick.
+ */
+export async function setLogStarred(
+  logId: string,
+  starred: boolean
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('log_entries')
+    .update({ starred })
+    .eq('id', logId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
