@@ -2998,3 +2998,82 @@ export async function fetchInvestigationSummaryStats(
     duration_seconds: Number(r.duration_seconds ?? 0),
   };
 }
+
+// ============================================================
+// HUNT DRAFTS (step 41)
+// ============================================================
+// Server-side snapshots of an active hunt. The client pushes the
+// entire ActiveHunt payload (sans pending photo files, which aren't
+// JSON-serializable anyway) every 30 seconds or after meaningful
+// state changes. On sign-in, the client can fetch a draft and offer
+// to restore it.
+
+export type HuntDraftRow = {
+  owner_id: string;
+  hunt_id: string;
+  payload: any;
+  started_at: string;
+  updated_at: string;
+};
+
+/** Upsert the current draft for this user. There's at most one
+ * draft per user (PK on owner_id). Strips any keys that aren't
+ * JSON-safe before sending. */
+export async function saveHuntDraft(input: {
+  ownerId: string;
+  huntId: string;
+  startedAt: string;
+  payload: unknown;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Defensive: JSON-clone the payload so we never send File / Blob /
+  // circular refs to Supabase. JSON.stringify drops File silently.
+  let serialized: unknown;
+  try {
+    serialized = JSON.parse(JSON.stringify(input.payload));
+  } catch (e) {
+    return { ok: false, error: 'payload not serializable' };
+  }
+  const { error } = await supabase
+    .from('hunt_drafts')
+    .upsert(
+      {
+        owner_id: input.ownerId,
+        hunt_id: input.huntId,
+        started_at: input.startedAt,
+        payload: serialized as any,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'owner_id' }
+    );
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Fetch the user's current draft, if any. */
+export async function fetchHuntDraft(
+  ownerId: string
+): Promise<HuntDraftRow | null> {
+  const { data, error } = await supabase
+    .from('hunt_drafts')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+  if (error) {
+    console.warn('[fetchHuntDraft]', error.message);
+    return null;
+  }
+  return data as HuntDraftRow | null;
+}
+
+/** Delete the user's draft. Called on seal, cancel, or explicit
+ * "discard". Idempotent — safe to call when there's no draft. */
+export async function deleteHuntDraft(
+  ownerId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('hunt_drafts')
+    .delete()
+    .eq('owner_id', ownerId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

@@ -576,6 +576,29 @@ export type Database = {
         };
         Relationships: [];
       };
+      hunt_drafts: {
+        Row: {
+          owner_id: string;
+          hunt_id: string;
+          payload: any;
+          started_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          owner_id: string;
+          hunt_id: string;
+          payload: any;
+          started_at: string;
+          updated_at?: string;
+        };
+        Update: {
+          hunt_id?: string;
+          payload?: any;
+          started_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
