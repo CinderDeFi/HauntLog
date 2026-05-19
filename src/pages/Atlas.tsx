@@ -66,6 +66,14 @@ export default function Atlas() {
 
   // Refresh active check-ins from Supabase on mount + every 60s while open.
   const loadActiveCheckIns = useHauntStore((s) => s.loadActiveCheckIns);
+  // Pull authoritative venue list from Supabase. Without this the
+  // Atlas would only show venues seeded into local state — never the
+  // ones admins approved while you weren't looking. Mount-only is
+  // fine: venues are slow-moving compared to live check-ins.
+  const hydrateAtlasVenues = useHauntStore((s) => s.hydrateAtlasVenues);
+  useEffect(() => {
+    hydrateAtlasVenues();
+  }, [hydrateAtlasVenues]);
   useEffect(() => {
     loadActiveCheckIns();
     const t = setInterval(() => loadActiveCheckIns(), 60_000);

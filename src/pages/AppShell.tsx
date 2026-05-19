@@ -72,6 +72,10 @@ export default function AppShell() {
       }
       // Always end with a fresh load so the cache reflects server state.
       await store.loadMyCases(uid);
+      // Pull the venue catalog too so the Atlas, LocationPicker, and
+      // HuntStart all see admin-approved venues without waiting for
+      // an Atlas mount.
+      await store.hydrateAtlasVenues();
     })();
     return () => {
       cancelled = true;
