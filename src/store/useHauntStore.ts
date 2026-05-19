@@ -339,6 +339,12 @@ type HauntState = {
   // periodically.
   loadActiveCheckIns: () => Promise<void>;
 
+  // Pull the authoritative venue list from Supabase and merge it into
+  // local state. Without this, admin-approved venues never reach the
+  // Atlas — the store would only ever know about venues created in
+  // this browser session.
+  hydrateAtlasVenues: () => Promise<void>;
+
   // One-shot migration: push any local-only cases (those that don't exist
   // server-side yet) up to Supabase. Idempotent — safe to call repeatedly.
   syncLocalCasesToServer: (userId: string) => Promise<{
@@ -893,6 +899,22 @@ export const useHauntStore = create<HauntState>()(
           });
         } catch (e) {
           console.warn('[loadActiveCheckIns] failed:', e);
+        }
+      },
+
+      hydrateAtlasVenues: async () => {
+        try {
+          const remote = await dataLayer.fetchAtlasVenues();
+          // Merge: server is authoritative for any id present in both
+          // sets. Local-only entries (legacy `loc_` IDs created on
+          // device before user submission existed) are preserved.
+          set((s) => {
+            const remoteIds = new Set(remote.map((v) => v.id));
+            const localOnly = s.venues.filter((v) => !remoteIds.has(v.id));
+            return { venues: [...remote, ...localOnly] };
+          });
+        } catch (e) {
+          console.warn('[hydrateAtlasVenues] failed:', e);
         }
       },
 
