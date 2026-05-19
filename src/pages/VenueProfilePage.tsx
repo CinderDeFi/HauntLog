@@ -49,6 +49,7 @@ import {
   MonitorDot,
   Home,
   KeyRound,
+  ShieldAlert,
 } from 'lucide-react';
 
 // Curated set of zone icons by kebab-case key. Keeps the bundle lean.
@@ -96,7 +97,8 @@ function formatPrice(amount: number, currency = 'USD'): string {
 
 export default function VenueProfilePage() {
   const { id } = useParams<{ id: string }>();
-  const { user: authUser } = useAuth();
+  const { user: authUser, profile: authProfile } = useAuth();
+  const isAdmin = !!authProfile?.is_admin;
   const toast = useToast();
   const [profile, setProfile] = useState<VenueProfile | null>(null);
   const [status, setStatus] = useState<'loading' | 'found' | 'not_found' | 'error'>(
@@ -339,6 +341,33 @@ export default function VenueProfilePage() {
                 </div>
                 <div className="text-sm">
                   Edit description, pricing, social links, and zones →
+                </div>
+              </div>
+            </div>
+          </Link>
+        )}
+
+        {/* Admin override CTA — only when the viewer is an admin AND
+            isn't already a manager (otherwise they already see the
+            manage CTA above). Lets admins jump straight to the editor
+            for moderation tasks like fixing bad data or deleting
+            user-submitted venues, without having to fake-claim the
+            venue first. */}
+        {!canManage && isAdmin && (
+          <Link
+            to={`/app/venues/${encodeURIComponent(location.id)}/edit`}
+            className="block bg-red-500/5 border border-red-500/40 rounded-2xl px-4 py-3 mb-5 hover:bg-red-500/10 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/40 flex items-center justify-center text-red-300 shrink-0">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-mono text-red-300 tracking-widest">
+                  ADMIN
+                </div>
+                <div className="text-sm">
+                  Open editor to moderate, fix, or delete this venue →
                 </div>
               </div>
             </div>
