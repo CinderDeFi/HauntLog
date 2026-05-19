@@ -905,12 +905,17 @@ export const useHauntStore = create<HauntState>()(
       hydrateAtlasVenues: async () => {
         try {
           const remote = await dataLayer.fetchAtlasVenues();
-          // Merge: server is authoritative for any id present in both
-          // sets. Local-only entries (legacy `loc_` IDs created on
-          // device before user submission existed) are preserved.
+          // Merge with a strict rule: a local entry survives only if
+          // its id looks locally-generated (the `v_` prefix from
+          // userVenueId()). Anything else not in the remote set is
+          // assumed to be stale DB cache — keeping it would resurrect
+          // venues an admin just deleted, which is exactly the bug
+          // we're fixing here.
           set((s) => {
             const remoteIds = new Set(remote.map((v) => v.id));
-            const localOnly = s.venues.filter((v) => !remoteIds.has(v.id));
+            const localOnly = s.venues.filter(
+              (v) => v.id.startsWith('v_') && !remoteIds.has(v.id)
+            );
             return { venues: [...remote, ...localOnly] };
           });
         } catch (e) {
