@@ -7,6 +7,7 @@ import {
   type VenueSubmissionRow,
   type VenueSubmitterRole,
 } from '../lib/dataLayer';
+import { geocodeAddress } from '../lib/geocode';
 import {
   ArrowLeft,
   Loader2,
@@ -171,6 +172,27 @@ export default function VenueSubmit() {
     setError(null);
     setSuccess(null);
 
+    // Geocode BEFORE submitting. Previously the submission payload
+    // had no coordinates, so admin approval defaulted lat/lng to
+    // (0,0) — putting every approved venue off the coast of Africa.
+    // Now we resolve the address first; if it can't be resolved we
+    // refuse to submit rather than save bad data and discover it on
+    // the map later.
+    const geo = await geocodeAddress({
+      street: street.trim() || undefined,
+      city: trimmedCity,
+      state: stateRegion.trim() || undefined,
+      zip: zip.trim() || undefined,
+      country: country.trim() || undefined,
+    });
+    if (!geo) {
+      setSubmitting(false);
+      setError(
+        "We couldn't find that address on the map. Double-check the street, city, state, and ZIP — even small typos cause this — then try again."
+      );
+      return;
+    }
+
     const res = await submitVenue({
       name: trimmedName,
       tagline: tagline.trim() || undefined,
@@ -186,6 +208,8 @@ export default function VenueSubmit() {
       submitter_role_other:
         role === 'other' ? roleOther.trim() || undefined : undefined,
       notes: notes.trim() || undefined,
+      lat: geo.lat,
+      lng: geo.lng,
     });
 
     setSubmitting(false);
