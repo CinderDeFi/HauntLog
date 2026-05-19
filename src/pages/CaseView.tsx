@@ -736,14 +736,15 @@ export default function CaseView() {
       )}
 
       <div className="border-b border-white/10">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-2 flex-wrap">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-x-2 text-white/60 hover:text-white text-sm"
+            className="flex items-center gap-x-2 text-white/60 hover:text-white text-sm shrink-0"
+            aria-label="Back to vault"
           >
-            <ArrowLeft className="w-4 h-4" /> BACK
+            <ArrowLeft className="w-4 h-4" /> <span className="hidden md:inline">BACK</span>
           </button>
-          <div className="flex items-center gap-x-3">
+          <div className="flex items-center gap-x-2 md:gap-x-3 flex-wrap justify-end">
             {/* Visibility — clickable dropdown for owner, static badge for others */}
             {(() => {
               const isOwner = caseFile.ownerHandle === currentUser.handle;
@@ -826,28 +827,32 @@ export default function CaseView() {
             {caseFile.visibility !== 'private' && (
               <button
                 onClick={copyShareLink}
-                className="text-xs font-mono tracking-widest text-white/60 hover:text-white flex items-center gap-x-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg"
+                className="text-xs font-mono tracking-widest text-white/60 hover:text-white flex items-center gap-x-1.5 px-2.5 md:px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg"
+                aria-label="Copy public link"
+                title="Copy public link"
               >
                 <LinkIcon className="w-3 h-3" />
-                COPY LINK
+                <span className="hidden md:inline">COPY LINK</span>
               </button>
             )}
 
             {caseFile.visibility !== 'private' && (
               <button
                 onClick={handleShare}
-                className="text-xs font-mono tracking-widest text-white/60 hover:text-white flex items-center gap-x-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg"
-                title="Copy public link"
+                className="text-xs font-mono tracking-widest text-white/60 hover:text-white flex items-center gap-x-1.5 px-2.5 md:px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg"
+                aria-label="Share"
+                title="Share"
               >
                 <Share2 className="w-3 h-3" />
-                SHARE
+                <span className="hidden md:inline">SHARE</span>
               </button>
             )}
 
             <button
               onClick={handleExportPDF}
               disabled={exporting}
-              className="text-xs font-mono tracking-widest text-white/60 hover:text-white flex items-center gap-x-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-50 rounded-lg"
+              className="text-xs font-mono tracking-widest text-white/60 hover:text-white flex items-center gap-x-1.5 px-2.5 md:px-3 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-50 rounded-lg"
+              aria-label={exporting ? 'Preparing PDF' : 'Export as PDF'}
               title="Download as PDF"
             >
               {exporting ? (
@@ -855,7 +860,9 @@ export default function CaseView() {
               ) : (
                 <Download className="w-3 h-3" />
               )}
-              {exporting ? 'PREPARING…' : 'EXPORT PDF'}
+              <span className="hidden md:inline">
+                {exporting ? 'PREPARING…' : 'EXPORT PDF'}
+              </span>
             </button>
 
             {/* Owner-only "..." menu */}

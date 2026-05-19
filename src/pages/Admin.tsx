@@ -199,7 +199,19 @@ export default function Admin() {
       if (err) throw err;
       await load();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e));
+      // PostgrestError isn't an Error instance — it's a plain object
+      // with a `message` field — so the naive String(e) fallback
+      // would render "[object Object]". Extract message defensively.
+      let msg = 'Something went wrong.';
+      if (e instanceof Error) {
+        msg = e.message;
+      } else if (e && typeof e === 'object' && 'message' in e) {
+        const m = (e as { message: unknown }).message;
+        if (typeof m === 'string') msg = m;
+      } else if (typeof e === 'string') {
+        msg = e;
+      }
+      setActionError(msg);
     } finally {
       setActionId(null);
     }
