@@ -20,6 +20,7 @@ import ClaimVenueModal from '../components/ClaimVenueModal';
 import PublicNav from '../components/PublicNav';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../lib/useAuth';
+import { parseVideoUrl } from '../lib/videoUrl';
 import {
   BadgeCheck,
   Bookmark,
@@ -521,6 +522,60 @@ export default function VenueProfilePage() {
               <p className="italic text-white/80 leading-relaxed whitespace-pre-wrap">
                 "{location.description}"
               </p>
+            </div>
+          </section>
+        )}
+
+        {/* ----- FEATURE VIDEO ----- */}
+        {/* Single embed — when the venue has a curated video that
+            captures what makes this place worth investigating. */}
+        {(() => {
+          if (!location.video_url) return null;
+          const parsed = parseVideoUrl(location.video_url);
+          if (!parsed) return null;
+          return (
+            <section className="mb-10">
+              <div className="text-xs font-mono text-white/40 tracking-widest mb-4">
+                FEATURE VIDEO
+              </div>
+              <div className="aspect-video w-full rounded-2xl overflow-hidden border border-white/10 bg-black">
+                <iframe
+                  src={parsed.embedUrl}
+                  title={`${location.name} — feature video`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full"
+                  loading="lazy"
+                />
+              </div>
+            </section>
+          );
+        })()}
+
+        {/* ----- GALLERY ----- */}
+        {/* Supplemental photos — rooms, exteriors, etc. */}
+        {location.photos && location.photos.length > 0 && (
+          <section className="mb-10">
+            <div className="text-xs font-mono text-white/40 tracking-widest mb-4">
+              GALLERY · {location.photos.length}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+              {location.photos.map((url, idx) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block aspect-[4/3] rounded-xl overflow-hidden border border-white/10 bg-zinc-900 hover:border-haunt-red/50 transition-colors"
+                >
+                  <img
+                    src={url}
+                    alt={`${location.name} — photo ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </a>
+              ))}
             </div>
           </section>
         )}

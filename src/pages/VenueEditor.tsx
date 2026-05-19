@@ -8,6 +8,8 @@ import {
 } from '../lib/dataLayer';
 import { useAuth } from '../lib/useAuth';
 import HeroImageUpload from '../components/HeroImageUpload';
+import VenueGalleryUpload from '../components/VenueGalleryUpload';
+import { parseVideoUrl } from '../lib/videoUrl';
 import type {
   LocationRow,
   LocationPricing,
@@ -31,6 +33,7 @@ import {
   Link2,
   Info,
   Image as ImageIcon,
+  Video as VideoIcon,
 } from 'lucide-react';
 
 /**
@@ -77,6 +80,9 @@ export default function VenueEditor() {
   const [zip, setZip] = useState('');
   const [country, setCountry] = useState('');
   const [heroImage, setHeroImage] = useState('');
+  // Step 44: video + gallery
+  const [videoUrl, setVideoUrl] = useState('');
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>([]);
 
   // Pricing tiers as a discrete list.
   const [currency, setCurrency] = useState('USD');
@@ -127,6 +133,8 @@ export default function VenueEditor() {
         setZip(v.zip ?? '');
         setCountry(v.country ?? '');
         setHeroImage(v.hero_image ?? '');
+        setVideoUrl(v.video_url ?? '');
+        setGalleryPhotos(v.photos ?? []);
         if (v.pricing) {
           setCurrency(v.pricing.currency ?? 'USD');
           setTiers(v.pricing.tiers ?? []);
@@ -178,6 +186,9 @@ export default function VenueEditor() {
       zip: zip.trim() || null,
       country: country.trim() || null,
       hero_image: heroImage.trim() || null,
+      video_url: videoUrl.trim() || null,
+      // photos are written directly by the gallery component, not from
+      // local form state, so we deliberately omit them here.
       pricing,
     };
   };
@@ -405,6 +416,54 @@ export default function VenueEditor() {
             setTimeout(() => setSaveOk(false), 2500);
           }}
         />
+      </SectionCard>
+
+      {/* GALLERY — supplemental photos (rooms, exterior, key spots) */}
+      <SectionCard
+        icon={<ImageIcon className="w-5 h-5" />}
+        title="Photo gallery"
+        subtitle="Room-by-room shots, exteriors, anything that gives investigators a feel for the location. Distinct from the hero banner above."
+      >
+        <VenueGalleryUpload
+          locationId={venue.id}
+          photos={galleryPhotos}
+          onChange={async (next) => {
+            // Persist immediately — gallery is autosaved unlike the
+            // rest of the form (which has an explicit SAVE button).
+            // Reason: each photo upload is already a network commit,
+            // so making the user click SAVE afterwards would feel weird.
+            const res = await updateVenue(venue.id, { photos: next });
+            if (!res.ok) return { ok: false, error: res.error };
+            setGalleryPhotos(next);
+            return { ok: true };
+          }}
+        />
+      </SectionCard>
+
+      {/* VIDEO — single embed (typically YouTube) */}
+      <SectionCard
+        icon={<VideoIcon className="w-5 h-5" />}
+        title="Feature video"
+        subtitle="A single video that captures what makes this place worth investigating. YouTube or Vimeo URL — paste any standard share link."
+      >
+        <div className="space-y-3">
+          <div>
+            <FieldLabel>VIDEO URL</FieldLabel>
+            <input
+              type="url"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 focus:border-haunt-red outline-none text-sm"
+            />
+            <div className="text-[10px] font-mono text-white/40 mt-1">
+              Save the form below for the video to appear on the public profile.
+            </div>
+          </div>
+          {videoUrl.trim() && (
+            <VideoUrlPreview url={videoUrl.trim()} />
+          )}
+        </div>
       </SectionCard>
 
       {/* ADDRESS */}
@@ -692,6 +751,34 @@ function NoAccess({
       >
         {linkLabel}
       </Link>
+    </div>
+  );
+}
+
+/**
+ * Inline preview that resolves the pasted URL through the parser and
+ * either shows the iframe at scale or a "we don't recognise this URL"
+ * hint. Helps owners catch typos before they save.
+ */
+function VideoUrlPreview({ url }: { url: string }) {
+  const parsed = parseVideoUrl(url);
+  if (!parsed) {
+    return (
+      <div className="bg-amber-500/5 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 inline-flex items-center gap-x-2">
+        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+        That URL doesn't look like a YouTube or Vimeo video. Double-check and try again.
+      </div>
+    );
+  }
+  return (
+    <div className="aspect-video w-full max-w-md rounded-xl overflow-hidden border border-white/10 bg-black">
+      <iframe
+        src={parsed.embedUrl}
+        title="Video preview"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        className="w-full h-full"
+      />
     </div>
   );
 }
