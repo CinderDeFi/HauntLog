@@ -8,7 +8,7 @@ import type {
   Visibility,
   LocationClaimRow,
 } from './database.types';
-import type { CaseFile, CheckIn, LogEntry } from '../store/useHauntStore';
+import type { CaseFile, CheckIn, LogEntry, Venue } from '../store/useHauntStore';
 
 // ============================================================
 // Mapping between client and DB shapes
@@ -989,6 +989,105 @@ export type VenueProfile = {
     verified: boolean;
   } | null;
 };
+
+/**
+ * Fetch every location eligible for the Atlas (the public map +
+ * list). Returns store-friendly Venue records so they can be merged
+ * directly into useHauntStore.venues.
+ *
+ * Why this exists: the Zustand store originally treated venues as
+ * pure local state (seeded only by check-ins). When venues became
+ * a real DB-backed concept (catalog seeds, user submissions, owner
+ * claims), the Atlas was never wired to read from the DB — so
+ * admin-approved venues invisibly piled up in `locations` and never
+ * showed up on the map. This is the bridge.
+ *
+ * Scale note: pulls every row in one shot. Fine for hundreds of
+ * venues. If/when this gets to thousands, switch to a bounding-box
+ * query keyed on the visible map area.
+ */
+export async function fetchAtlasVenues(): Promise<Venue[]> {
+  const { data, error } = await supabase
+    .from('locations')
+    .select(
+      'id, source, name, lat, lng, description, street, city, state, zip, country, website, hours, contact_email, contact_phone, rules, booking_url, tags, photos, claimed_by, verified, created_by_handle, created_at'
+    );
+  if (error) throw error;
+  if (!data) return [];
+  return data.map(locationRowToVenue);
+}
+
+/**
+ * Adapt the wide `locations` row into the narrower store-shaped
+ * Venue. Pure function — no side effects, no I/O. Mirrors the
+ * camelCase translation in `caseRowToCaseFile`.
+ */
+function locationRowToVenue(row: {
+  id: string;
+  source: string | null;
+  name: string;
+  lat: number;
+  lng: number;
+  description: string | null;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: string | null;
+  website: string | null;
+  hours: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  rules: string[] | null;
+  booking_url: string | null;
+  tags: string[] | null;
+  photos: string[] | null;
+  claimed_by: string | null;
+  verified: boolean;
+  created_by_handle: string;
+  created_at: string;
+}): Venue {
+  const source = row.source === 'catalog' ? 'catalog' : 'user';
+  const addressBits = [row.street, row.city, row.state, row.zip, row.country].filter(
+    (s): s is string => Boolean(s && s.trim())
+  );
+  const hasAddress = addressBits.length > 0;
+  return {
+    id: row.id,
+    source,
+    name: row.name,
+    lat: row.lat,
+    lng: row.lng,
+    description: row.description ?? undefined,
+    address: hasAddress
+      ? {
+          street: row.street ?? undefined,
+          city: row.city ?? undefined,
+          state: row.state ?? undefined,
+          zip: row.zip ?? undefined,
+          country: row.country ?? undefined,
+        }
+      : undefined,
+    website: row.website ?? undefined,
+    hours: row.hours ?? undefined,
+    contact:
+      row.contact_email || row.contact_phone
+        ? {
+            email: row.contact_email ?? undefined,
+            phone: row.contact_phone ?? undefined,
+          }
+        : undefined,
+    rules: row.rules ?? undefined,
+    bookingUrl: row.booking_url ?? undefined,
+    tags: row.tags ?? undefined,
+    photos: row.photos ?? undefined,
+    claimedByHandle: row.claimed_by ?? undefined,
+    verified: row.verified,
+    createdAt: row.created_at,
+    createdByHandle: row.created_by_handle,
+    revisions: [],
+  };
+}
 
 /**
  * Fetch a single venue with everything needed to render its rich
