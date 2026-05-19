@@ -278,7 +278,9 @@ export type NotificationKind =
   | 'claim_rejected'
   | 'claim_submitted'
   | 'case_comment'
-  | 'case_reaction';
+  | 'case_reaction'
+  | 'venue_submission_approved'
+  | 'venue_submission_rejected';
 
 export type NotificationRow = {
   id: string;

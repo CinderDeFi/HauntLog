@@ -1750,6 +1750,13 @@ export function notificationLink(n: NotificationRow & { actor?: { handle: string
       return n.target_id ? `/case/${encodeURIComponent(n.target_id)}` : '/app';
     case 'case_reaction':
       return n.target_id ? `/case/${encodeURIComponent(n.target_id)}` : '/app';
+    case 'venue_submission_approved':
+      // target_id is the new location id — send the submitter to the
+      // freshly minted venue so they can see / manage it.
+      return n.target_id ? `/v/${encodeURIComponent(n.target_id)}` : '/app';
+    case 'venue_submission_rejected':
+      // No venue exists; landing on /app is fine.
+      return '/app';
     default:
       return '/app';
   }
@@ -1798,6 +1805,17 @@ export function notificationText(n: NotificationWithActor): string {
           ? 'is examining'
           : 'reacted to';
       return `${who} ${verb} "${caseTitle}"`;
+    }
+    case 'venue_submission_approved': {
+      const name = (n.data?.location_name as string) ?? 'your venue submission';
+      return `Your submission "${name}" was approved and added to the atlas.`;
+    }
+    case 'venue_submission_rejected': {
+      const name = (n.data?.location_name as string) ?? 'your venue submission';
+      const note = n.data?.note as string | undefined;
+      return note
+        ? `Your submission "${name}" was not approved: "${note}"`
+        : `Your submission "${name}" was not approved.`;
     }
     default:
       return 'New notification';
