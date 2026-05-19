@@ -116,7 +116,7 @@ export default function AddPhotosModal({
       }}
     >
       <div
-        className="w-full max-w-lg bg-zinc-950 border border-white/10 rounded-t-3xl md:rounded-3xl max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-lg bg-zinc-950 border border-white/10 rounded-t-3xl md:rounded-3xl max-h-[90vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
