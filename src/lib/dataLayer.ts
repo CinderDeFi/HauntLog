@@ -1393,6 +1393,33 @@ export async function updateVenue(
   return { ok: true, row: data as LocationRow };
 }
 
+/**
+ * Admin-only: hard-delete a venue. The server-side RPC checks admin
+ * status. Dependent rows handled by FK rules in the schema:
+ *   - Zones, follows, manager rows, photos → CASCADE deleted
+ *   - Cases, investigations → venue_id set to NULL (history survives)
+ *
+ * Returns ok:false with a readable message if the user isn't admin
+ * or the row doesn't exist. Caller decides whether to toast / route.
+ */
+export async function deleteLocation(
+  locationId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc('delete_location' as any, {
+    p_location_id: locationId,
+  } as any);
+  if (error) {
+    // Extract a friendly message from the PostgrestError shape — same
+    // pattern we use in Admin.tsx after the [object Object] bug.
+    const msg =
+      typeof error === 'object' && error && 'message' in error
+        ? String((error as { message: unknown }).message ?? 'Delete failed')
+        : 'Delete failed';
+    return { ok: false, error: msg };
+  }
+  return { ok: true };
+}
+
 // ----- Zones -----
 
 export async function fetchZones(locationId: string): Promise<LocationZoneRow[]> {
