@@ -120,9 +120,14 @@ export default function VenueEditor() {
         }
         const v = profile.location;
 
-        // Permission check via location_managers.
+        // Permission check via location_managers. Admins bypass —
+        // they need full access for moderation (delete, fix bad
+        // coords, edit user-submitted venues, etc.) regardless of
+        // whether they've claimed an ownership row. Without this
+        // bypass an admin would have to fake-claim a venue just to
+        // edit/delete it.
         const role = await fetchMyVenueRole(authUser.id, locationId);
-        if (role !== 'owner' && role !== 'manager') {
+        if (role !== 'owner' && role !== 'manager' && !isAdmin) {
           setStatus('not_permitted');
           return;
         }
