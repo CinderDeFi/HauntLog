@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../lib/useAuth';
 import HeroImageUpload from '../components/HeroImageUpload';
 import VenueGalleryUpload from '../components/VenueGalleryUpload';
+import { useToast } from '../components/ui/Toast';
 import { parseVideoUrl } from '../lib/videoUrl';
 import type {
   LocationRow,
@@ -34,6 +35,7 @@ import {
   Info,
   Image as ImageIcon,
   Video as VideoIcon,
+  CheckCircle2,
 } from 'lucide-react';
 
 /**
@@ -54,6 +56,7 @@ const INPUT_CLS =
 export default function VenueEditor() {
   const { locationId } = useParams<{ locationId: string }>();
   const { user: authUser } = useAuth();
+  const toast = useToast();
 
   const [status, setStatus] = useState<
     'loading' | 'ready' | 'not_permitted' | 'not_found' | 'error'
@@ -202,11 +205,19 @@ export default function VenueEditor() {
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
+      // Surface the failure as a toast too — the in-form error banner
+      // is at the top of a long page and easy to miss when the user
+      // is focused on the SAVE button at the bottom.
+      toast.error('Save failed', { description: res.error });
       return;
     }
     setVenue(res.row);
     setSaveOk(true);
-    // Hide the green confirmation after a beat.
+    // Toast is the primary success signal — the top-of-page banner is
+    // out of view when you're tapping SAVE at the bottom of the form.
+    toast.success('Venue saved');
+    // Hide the green confirmation after a beat (still useful when the
+    // user scrolls back to the top after saving).
     setTimeout(() => setSaveOk(false), 2500);
   };
 
@@ -612,13 +623,34 @@ export default function VenueEditor() {
           phones, making the editor effectively non-functional there. */}
       <div className="fixed bottom-0 left-0 right-0 z-[1250] bg-black/95 backdrop-blur border-t border-white/10 py-3 md:py-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-4">
         <div className="max-w-3xl mx-auto px-6 md:px-8 flex items-center justify-between gap-3">
-          <div className="text-xs font-mono text-white/40 tracking-widest hidden md:block">
-            CHANGES SAVE TO ALL INVESTIGATORS IMMEDIATELY
+          {/* Inline save status — visible on both mobile and desktop.
+              Without this the green "Saved." confirmation banner at the
+              top of the page is out of view for anyone using the SAVE
+              button (which is at the bottom of a long form), so saves
+              feel silent and people retap thinking it didn't work. */}
+          <div className="min-w-0 flex-1 text-xs font-mono tracking-widest">
+            {saving ? (
+              <span className="inline-flex items-center gap-x-2 text-white/60">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> SAVING…
+              </span>
+            ) : saveOk ? (
+              <span className="inline-flex items-center gap-x-2 text-green-400">
+                <CheckCircle2 className="w-3.5 h-3.5" /> SAVED
+              </span>
+            ) : error ? (
+              <span className="inline-flex items-center gap-x-2 text-red-300">
+                <AlertCircle className="w-3.5 h-3.5" /> SAVE FAILED · SEE TOP
+              </span>
+            ) : (
+              <span className="text-white/40 hidden md:inline">
+                CHANGES SAVE TO ALL INVESTIGATORS IMMEDIATELY
+              </span>
+            )}
           </div>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-6 py-3 rounded-xl bg-haunt-red text-white font-mono tracking-widest text-sm inline-flex items-center gap-x-2 hover:bg-red-600 disabled:opacity-50"
+            className="px-6 py-3 rounded-xl bg-haunt-red text-white font-mono tracking-widest text-sm inline-flex items-center gap-x-2 hover:bg-red-600 disabled:opacity-50 shrink-0"
           >
             {saving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
