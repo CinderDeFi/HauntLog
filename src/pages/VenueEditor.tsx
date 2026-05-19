@@ -8,6 +8,7 @@ import {
   type VenueUpdatePatch,
 } from '../lib/dataLayer';
 import { useAuth } from '../lib/useAuth';
+import { useHauntStore } from '../store/useHauntStore';
 import HeroImageUpload from '../components/HeroImageUpload';
 import VenueGalleryUpload from '../components/VenueGalleryUpload';
 import { useToast } from '../components/ui/Toast';
@@ -250,6 +251,10 @@ export default function VenueEditor() {
     }
     toast.success(`Deleted "${venue.name}"`);
     setDeleteOpen(false);
+    // Refresh the local venue cache so the deleted row disappears
+    // from the Atlas + LocationPicker immediately, rather than
+    // surviving in localStorage until the next page load.
+    await useHauntStore.getState().hydrateAtlasVenues();
     // Go back to the venues list; the editor we're on is now a 404.
     navigate('/app/my-venues');
   };
