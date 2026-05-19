@@ -1746,6 +1746,8 @@ export function notificationLink(n: NotificationRow & { actor?: { handle: string
       return '/app/admin';
     case 'case_comment':
       return n.target_id ? `/case/${encodeURIComponent(n.target_id)}` : '/app';
+    case 'case_reaction':
+      return n.target_id ? `/case/${encodeURIComponent(n.target_id)}` : '/app';
     default:
       return '/app';
   }
@@ -1778,6 +1780,23 @@ export function notificationText(n: NotificationWithActor): string {
       return `${who} submitted a claim for ${venue}.`;
     case 'case_comment':
       return `${who} commented on "${caseTitle}"`;
+    case 'case_reaction': {
+      // Make the reaction feel like the dossier vocabulary it is —
+      // capitalized in voice ("found your case CHILLING"), not just
+      // the bare tag.
+      const reaction = (n.data?.reaction as string) ?? '';
+      const verb =
+        reaction === 'chilled'
+          ? 'was chilled by'
+          : reaction === 'witnessed'
+          ? 'witnessed something like'
+          : reaction === 'skeptical'
+          ? 'is skeptical of'
+          : reaction === 'examine'
+          ? 'is examining'
+          : 'reacted to';
+      return `${who} ${verb} "${caseTitle}"`;
+    }
     default:
       return 'New notification';
   }

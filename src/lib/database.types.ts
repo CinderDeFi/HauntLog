@@ -274,7 +274,8 @@ export type NotificationKind =
   | 'claim_approved'
   | 'claim_rejected'
   | 'claim_submitted'
-  | 'case_comment';
+  | 'case_comment'
+  | 'case_reaction';
 
 export type NotificationRow = {
   id: string;
