@@ -124,6 +124,9 @@ export type LocationRow = {
   features: string[];
   operating_window: string | null;
   pricing: LocationPricing | null;
+  /** Step 44: single embedded video URL (typically YouTube). Stored
+   * raw; rendered as an iframe at view time. */
+  video_url: string | null;
 };
 
 export type LocationZoneRow = {

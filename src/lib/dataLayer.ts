@@ -1274,6 +1274,8 @@ export type VenueUpdatePatch = Partial<
     | 'country'
     | 'hero_image'
     | 'pricing'
+    | 'video_url'
+    | 'photos'
   >
 >;
 
@@ -3177,4 +3179,61 @@ export async function fetchCaseReactionCounts(
     .maybeSingle();
   if (error || !data) return {};
   return (data.reaction_counts as CaseReactionCounts) ?? {};
+}
+
+/**
+ * Upload a single venue gallery photo. Unlike `uploadVenuePhoto`
+ * (which is hero-specific and replaces a prior file), this adds a
+ * new image to the bucket and returns the public URL. The caller
+ * persists the URL into locations.photos (an array). Old files are
+ * NOT cleaned up here — call `removeVenueGalleryPhoto` for that.
+ *
+ * Photos go in a `{locationId}/gallery-{uuid}.jpg` path so they're
+ * easy to distinguish from the hero in the bucket.
+ */
+export async function uploadVenueGalleryPhoto(input: {
+  locationId: string;
+  blob: Blob;
+  mimeType?: string;
+}): Promise<{ ok: true; publicUrl: string } | { ok: false; error: string }> {
+  const photoId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const mime = input.mimeType ?? 'image/jpeg';
+  const ext =
+    mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+  const storagePath = `${input.locationId}/gallery-${photoId}.${ext}`;
+  const { error: upErr } = await supabase.storage
+    .from(VENUE_PHOTO_BUCKET)
+    .upload(storagePath, input.blob, {
+      contentType: mime,
+      upsert: false,
+    });
+  if (upErr) return { ok: false, error: `Upload failed: ${upErr.message}` };
+  const { data: urlData } = supabase.storage
+    .from(VENUE_PHOTO_BUCKET)
+    .getPublicUrl(storagePath);
+  return { ok: true, publicUrl: urlData.publicUrl };
+}
+
+/**
+ * Delete a venue gallery photo from storage if the URL points at our
+ * bucket. Best-effort — failing this doesn't unblock the caller, who
+ * should already have removed the URL from `locations.photos`.
+ */
+export async function removeVenueGalleryPhoto(input: {
+  locationId: string;
+  url: string;
+}): Promise<void> {
+  try {
+    const marker = `/storage/v1/object/public/${VENUE_PHOTO_BUCKET}/`;
+    const idx = input.url.indexOf(marker);
+    if (idx < 0) return;
+    const path = input.url.slice(idx + marker.length);
+    if (!path.startsWith(`${input.locationId}/`)) return;
+    await supabase.storage.from(VENUE_PHOTO_BUCKET).remove([path]);
+  } catch {
+    /* best-effort */
+  }
 }
