@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   fetchVenueProfile,
   followVenue,
@@ -47,6 +47,7 @@ import {
   ArrowDownFromLine,
   MonitorDot,
   Home,
+  KeyRound,
 } from 'lucide-react';
 
 // Curated set of zone icons by kebab-case key. Keeps the bundle lean.
@@ -94,7 +95,6 @@ function formatPrice(amount: number, currency = 'USD'): string {
 
 export default function VenueProfilePage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { user: authUser } = useAuth();
   const toast = useToast();
   const [profile, setProfile] = useState<VenueProfile | null>(null);
@@ -507,7 +507,7 @@ export default function VenueProfilePage() {
               <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
                 <div>
                   <div className="text-xs font-mono text-haunt-red tracking-widest mb-1 inline-flex items-center gap-x-2">
-                    🔑 PRIVATE BOOKING · YOUR WAY
+                    <KeyRound className="w-3.5 h-3.5" /> PRIVATE BOOKING · YOUR WAY
                   </div>
                   <p className="text-sm text-white/80">
                     The entire venue is yours
@@ -772,13 +772,21 @@ export default function VenueProfilePage() {
           </section>
         )}
 
-        {/* ----- CTAS ----- */}
-        <div className="grid grid-cols-2 gap-3 sticky bottom-0 bg-black/80 backdrop-blur py-4">
+        {/* ----- CTAS -----
+            Sticky bottom bar. When the venue has a booking URL we
+            show a 2-up grid (FOLLOW · BOOK); otherwise the FOLLOW
+            button takes full width — the old "NO BOOKING LINK"
+            placeholder button looked like a broken disabled control. */}
+        <div
+          className={`sticky bottom-0 bg-black/80 backdrop-blur py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] ${
+            location.booking_url ? 'grid grid-cols-2 gap-3' : ''
+          }`}
+        >
           <button
             onClick={handleFollow}
             disabled={!authUser || followLoading}
             title={!authUser ? 'Sign in to follow venues' : undefined}
-            className={`px-5 py-3.5 rounded-xl text-sm font-mono tracking-widest inline-flex items-center justify-center gap-x-2 transition-colors disabled:opacity-60 ${
+            className={`w-full px-5 py-3.5 rounded-xl text-sm font-mono tracking-widest inline-flex items-center justify-center gap-x-2 transition-colors disabled:opacity-60 ${
               following
                 ? 'bg-amber-400/15 border border-amber-400/40 text-amber-300 hover:bg-amber-400/20'
                 : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
@@ -793,7 +801,7 @@ export default function VenueProfilePage() {
             )}
             {following ? 'FOLLOWING' : 'FOLLOW VENUE'}
           </button>
-          {location.booking_url ? (
+          {location.booking_url && (
             <a
               href={location.booking_url}
               target="_blank"
@@ -808,13 +816,6 @@ export default function VenueProfilePage() {
                   )}`
                 : 'BOOK NOW'}
             </a>
-          ) : (
-            <button
-              onClick={() => navigate('/app/atlas')}
-              className="px-5 py-3.5 bg-zinc-900 border border-white/10 rounded-xl text-sm font-mono tracking-widest text-white/60"
-            >
-              NO BOOKING LINK
-            </button>
           )}
         </div>
       </main>

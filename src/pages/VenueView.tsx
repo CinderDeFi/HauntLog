@@ -196,7 +196,7 @@ export default function VenueView() {
       {!editing ? (
         <>
           <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
-            <h1 className="text-5xl font-medium tracking-tighter">{venue.name}</h1>
+            <h1 className="text-4xl md:text-5xl font-medium tracking-tighter break-words">{venue.name}</h1>
             <div className="flex gap-2">
               {isCatalog && !venue.claimedByHandle && (
                 <button

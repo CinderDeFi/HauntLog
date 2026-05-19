@@ -543,11 +543,15 @@ export default function VenueEditor() {
         </div>
       </SectionCard>
 
-      {/* Bottom padding so the sticky save bar doesn't cover content */}
-      <div className="h-20"></div>
+      {/* Bottom padding so the sticky save bar doesn't cover content.
+          Bumped to account for the larger sticky bar with safe-area padding. */}
+      <div className="h-24"></div>
 
-      {/* STICKY SAVE BAR */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur border-t border-white/10 py-3 md:py-4">
+      {/* STICKY SAVE BAR
+          z-[1250] so it sits ABOVE the mobile bottom nav (z-[1200]).
+          Without this the SAVE button was hidden behind the nav on
+          phones, making the editor effectively non-functional there. */}
+      <div className="fixed bottom-0 left-0 right-0 z-[1250] bg-black/95 backdrop-blur border-t border-white/10 py-3 md:py-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-4">
         <div className="max-w-3xl mx-auto px-6 md:px-8 flex items-center justify-between gap-3">
           <div className="text-xs font-mono text-white/40 tracking-widest hidden md:block">
             CHANGES SAVE TO ALL INVESTIGATORS IMMEDIATELY

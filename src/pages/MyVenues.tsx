@@ -67,7 +67,7 @@ export default function MyVenues() {
       <div className="text-xs font-mono text-amber-400 tracking-widest mb-2 flex items-center gap-x-2">
         <Building2 className="w-3.5 h-3.5" /> MANAGED VENUES
       </div>
-      <h1 className="text-4xl font-medium tracking-tighter mb-2">Your venues</h1>
+      <h1 className="text-4xl md:text-5xl font-medium tracking-tighter mb-2">Your venues</h1>
       <p className="text-white/60 mb-8">
         Locations you manage on HauntLog. Edit content, pricing, zones, and respond
         to investigator activity.

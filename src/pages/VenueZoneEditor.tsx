@@ -435,9 +435,10 @@ export default function VenueZoneEditor() {
         <Plus className="w-3.5 h-3.5" /> ADD ZONE
       </button>
 
-      {/* Sticky save-all bar (only when there are dirty rows) */}
+      {/* Sticky save-all bar (only when there are dirty rows).
+          z-[1250] so it sits ABOVE the mobile bottom nav (z-[1200]). */}
       {anyDirty && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur border-t border-white/10 py-3 md:py-4">
+        <div className="fixed bottom-0 left-0 right-0 z-[1250] bg-black/95 backdrop-blur border-t border-white/10 py-3 md:py-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-4">
           <div className="max-w-3xl mx-auto px-6 md:px-8 flex items-center justify-between gap-3">
             <div className="text-xs font-mono text-amber-300 tracking-widest">
               UNSAVED CHANGES
