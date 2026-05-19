@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   fetchVenueProfile,
   fetchMyVenueRole,
   updateVenue,
+  deleteLocation,
   type VenueUpdatePatch,
 } from '../lib/dataLayer';
 import { useAuth } from '../lib/useAuth';
@@ -36,6 +37,7 @@ import {
   Image as ImageIcon,
   Video as VideoIcon,
   CheckCircle2,
+  ShieldAlert,
 } from 'lucide-react';
 
 /**
@@ -55,7 +57,9 @@ const INPUT_CLS =
 
 export default function VenueEditor() {
   const { locationId } = useParams<{ locationId: string }>();
-  const { user: authUser } = useAuth();
+  const navigate = useNavigate();
+  const { user: authUser, profile: authProfile } = useAuth();
+  const isAdmin = !!authProfile?.is_admin;
   const toast = useToast();
 
   const [status, setStatus] = useState<
@@ -94,6 +98,12 @@ export default function VenueEditor() {
 
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
+
+  // Admin delete — modal + state. Confirmation requires typing the
+  // venue name so a stray tap can't wipe a row.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!locationId || !authUser) return;
@@ -219,6 +229,29 @@ export default function VenueEditor() {
     // Hide the green confirmation after a beat (still useful when the
     // user scrolls back to the top after saving).
     setTimeout(() => setSaveOk(false), 2500);
+  };
+
+  /**
+   * Admin-only hard delete. Requires:
+   *   - The viewer is admin (server enforces too, so spoofed UI fails)
+   *   - The user typed the venue name exactly in the confirm modal
+   * On success we navigate away — staying on the editor for a row
+   * that no longer exists would be confusing.
+   */
+  const handleDelete = async () => {
+    if (!venue || !isAdmin || deleting) return;
+    if (deleteConfirmText.trim() !== venue.name.trim()) return;
+    setDeleting(true);
+    const res = await deleteLocation(venue.id);
+    setDeleting(false);
+    if (!res.ok) {
+      toast.error('Could not delete venue', { description: res.error });
+      return;
+    }
+    toast.success(`Deleted "${venue.name}"`);
+    setDeleteOpen(false);
+    // Go back to the venues list; the editor we're on is now a 404.
+    navigate('/app/my-venues');
   };
 
   // Pricing tier editor helpers
@@ -613,6 +646,43 @@ export default function VenueEditor() {
         </div>
       </SectionCard>
 
+      {/* DANGER ZONE — admin-only. Lives below all the regular
+          editor sections, intentionally separated, so accidental
+          taps on the wrong button are unlikely. The confirm modal
+          adds a name-typed-back step before anything actually
+          deletes — the kind of safety net the rest of the app
+          doesn't need but a destructive irreversible action does. */}
+      {isAdmin && (
+        <div className="mt-8 mb-4 bg-red-950/20 border border-red-500/30 rounded-2xl p-5">
+          <div className="flex items-start gap-x-3">
+            <div className="shrink-0 w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+              <ShieldAlert className="w-4 h-4 text-red-300" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-red-200 mb-1">
+                Admin — delete this venue
+              </div>
+              <div className="text-xs text-white/60 leading-relaxed mb-3">
+                Removes the venue from the atlas and unlinks it from any
+                cases or investigations that reference it. Photos, zones,
+                follows, and manager assignments are deleted permanently.
+                Sealed cases survive but lose their venue link.
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmText('');
+                  setDeleteOpen(true);
+                }}
+                className="inline-flex items-center gap-x-2 px-3.5 py-2 rounded-xl bg-red-500/15 border border-red-500/40 text-red-200 text-xs font-mono tracking-widest hover:bg-red-500/25"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> DELETE VENUE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom padding so the sticky save bar doesn't cover content.
           Bumped to account for the larger sticky bar with safe-area padding. */}
       <div className="h-24"></div>
@@ -661,6 +731,77 @@ export default function VenueEditor() {
           </button>
         </div>
       </div>
+
+      {/* DELETE CONFIRMATION MODAL — admin only, name typed to confirm.
+          z-[1300] so it sits above modals AND the sticky save bar
+          (z-[1250]) AND the bottom nav (z-[1200]). */}
+      {deleteOpen && venue && (
+        <div
+          className="fixed inset-0 z-[1300] bg-black/80 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-6"
+          onClick={() => !deleting && setDeleteOpen(false)}
+        >
+          <div
+            className="bg-zinc-950 border border-white/10 rounded-t-3xl md:rounded-3xl w-full max-w-md pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 md:p-6">
+              <div className="flex items-start gap-x-3 mb-4">
+                <div className="shrink-0 w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                  <ShieldAlert className="w-4 h-4 text-red-300" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-base font-medium mb-1">
+                    Delete this venue?
+                  </div>
+                  <div className="text-xs text-white/60 leading-relaxed">
+                    This removes <span className="font-mono text-white/80">{venue.name}</span> from the atlas, its photos, zones, follows, and manager assignments. Cases that reference it survive but lose their venue link. This action cannot be undone.
+                  </div>
+                </div>
+              </div>
+
+              <label className="block text-[10px] font-mono text-white/40 tracking-widest mb-1.5">
+                TYPE THE VENUE NAME TO CONFIRM
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={venue.name}
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full bg-black border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono focus:border-red-500 outline-none mb-4"
+              />
+
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDeleteOpen(false)}
+                  disabled={deleting}
+                  className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-mono tracking-widest hover:bg-white/10 disabled:opacity-50"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={
+                    deleting ||
+                    deleteConfirmText.trim() !== venue.name.trim()
+                  }
+                  className="px-4 py-2.5 rounded-xl bg-red-600 text-white text-xs font-mono tracking-widest hover:bg-red-700 disabled:opacity-30 inline-flex items-center gap-x-2"
+                >
+                  {deleting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  DELETE PERMANENTLY
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
