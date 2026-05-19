@@ -293,6 +293,31 @@ export default function VenueProfilePage() {
     <div className="min-h-screen bg-black text-white">
       <PublicNav />
 
+      {/* ----- HERO IMAGE ----- */}
+      {/* Full-bleed banner image, when the venue has one. Magazine-cover
+          treatment: cinematic aspect on desktop (16/9), shorter on
+          mobile (3/2) so it doesn't eat half the viewport. A dark
+          bottom gradient softens the transition into the main content
+          below so the page doesn't feel like two stacked rectangles. */}
+      {location.hero_image && (
+        <div className="relative w-full overflow-hidden bg-zinc-950">
+          <div className="relative aspect-[3/2] md:aspect-[16/9] max-h-[60vh] mx-auto max-w-screen-xl">
+            <img
+              src={location.hero_image}
+              alt={`${location.name} — venue photo`}
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="eager"
+            />
+            {/* Gradient scrim so the page-fold transition feels intentional
+                and any pinned page chrome stays readable. */}
+            <div
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none"
+            />
+          </div>
+        </div>
+      )}
+
       <main className="max-w-3xl mx-auto px-6 md:px-8 py-10">
         {/* ----- HERO ----- */}
 
