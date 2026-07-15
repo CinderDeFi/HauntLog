@@ -140,6 +140,15 @@ export default function PhotoLightbox({
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                // The global lightbox key handler ignores keys while editing,
+                // so cancel on Esc here (users expect Esc to back out of the
+                // caption edit, not do nothing).
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  cancelEdit();
+                }
+              }}
               autoFocus
               rows={2}
               maxLength={280}

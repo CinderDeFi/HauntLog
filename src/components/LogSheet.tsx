@@ -105,12 +105,19 @@ export default function LogSheet({ open, onClose }: Props) {
 
   const handleSave = () => {
     if (!canSave) return;
+    // The datetime-local input can be cleared to '' (or hold an invalid
+    // value), which makes new Date(...).toISOString() throw RangeError and
+    // silently kills the save. Fall back to "now" for an unparseable time.
+    const parsed = new Date(timestamp);
+    const timestampIso = Number.isNaN(parsed.getTime())
+      ? new Date().toISOString()
+      : parsed.toISOString();
     addLog({
       equipmentId,
       observation: observation.trim(),
       note: note.trim() || undefined,
       starred,
-      timestamp: new Date(timestamp).toISOString(),
+      timestamp: timestampIso,
       data: data && Object.keys(data).length > 0 ? data : undefined,
       pendingPhotoFiles: photos.length > 0 ? photos.map((p) => p.file) : undefined,
     });

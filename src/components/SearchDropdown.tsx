@@ -65,18 +65,24 @@ export default function SearchDropdown({ open, onClose }: Props) {
       return;
     }
     setLoading(true);
+    // Guard against out-of-order responses: if `query` changes while a
+    // request is in flight, this effect re-runs and sets `cancelled`, so
+    // the stale request's late resolution can't overwrite newer results.
+    let cancelled = false;
     debounceRef.current = window.setTimeout(async () => {
       try {
         const r = await searchPeopleAndTeams(query);
+        if (cancelled) return;
         setResults(r);
         setActiveIndex(0);
       } catch {
-        setResults({ profiles: [], teams: [] });
+        if (!cancelled) setResults({ profiles: [], teams: [] });
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }, 250);
     return () => {
+      cancelled = true;
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
   }, [query, open]);

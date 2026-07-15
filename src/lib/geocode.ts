@@ -68,11 +68,21 @@ export async function geocodeAddress(parts: {
     return null;
   }
   if (!res.ok) return null;
-  const body = (await res.json()) as Array<{
-    lat: string;
-    lon: string;
-    display_name: string;
-  }>;
+  // Parse INSIDE the try boundary. A 200 response isn't guaranteed to be
+  // JSON — Nominatim maintenance pages, rate-limit interstitials, or a
+  // truncated body make res.json() reject. Left unguarded, that rejection
+  // propagates out of geocodeAddress and (since VenueSubmit doesn't wrap
+  // this call) leaves the submit form stuck in its disabled state forever.
+  let body: Array<{ lat: string; lon: string; display_name: string }>;
+  try {
+    body = (await res.json()) as Array<{
+      lat: string;
+      lon: string;
+      display_name: string;
+    }>;
+  } catch {
+    return null;
+  }
   if (!Array.isArray(body) || body.length === 0) return null;
   const top = body[0];
   const lat = Number(top.lat);

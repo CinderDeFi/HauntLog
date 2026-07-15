@@ -18,8 +18,18 @@ export function usePullToRefresh(onRefresh: () => void | Promise<void>) {
   const [pullDistance, setPullDistance] = useState(0);
   const startYRef = useRef<number | null>(null);
   const triggeredRef = useRef(false);
+  // Mirror the current pull distance in a ref. touchend reads THIS, not the
+  // `pullDistance` state, which on a fast flick can still hold a stale value
+  // (React may not have committed the final touchmove's setState before
+  // touchend fires) — causing the refresh to silently not trigger.
+  const pullDistanceRef = useRef(0);
   const threshold = 80;
   const maxPull = 140;
+
+  const setPull = (d: number) => {
+    pullDistanceRef.current = d;
+    setPullDistance(d);
+  };
 
   // Keep the latest onRefresh in a ref so the listeners stay stable.
   const refreshRef = useRef(onRefresh);
@@ -48,34 +58,34 @@ export function usePullToRefresh(onRefresh: () => void | Promise<void>) {
       if (window.scrollY > 0) {
         startYRef.current = null;
         setPulling(false);
-        setPullDistance(0);
+        setPull(0);
         return;
       }
       const y = e.touches[0]?.clientY ?? startYRef.current;
       const delta = y - startYRef.current;
       if (delta <= 0) {
         setPulling(false);
-        setPullDistance(0);
+        setPull(0);
         return;
       }
       // Resist further pulling past maxPull (rubber-band feel).
       const resisted = delta < maxPull ? delta : maxPull + (delta - maxPull) * 0.3;
       setPulling(true);
-      setPullDistance(resisted);
+      setPull(resisted);
     };
 
     const handleTouchEnd = () => {
       if (startYRef.current === null) {
         setPulling(false);
-        setPullDistance(0);
+        setPull(0);
         return;
       }
-      if (pullDistance >= threshold && !triggeredRef.current) {
+      if (pullDistanceRef.current >= threshold && !triggeredRef.current) {
         triggeredRef.current = true;
         Promise.resolve(refreshRef.current()).catch(() => {});
       }
       setPulling(false);
-      setPullDistance(0);
+      setPull(0);
       startYRef.current = null;
     };
 
@@ -90,7 +100,10 @@ export function usePullToRefresh(onRefresh: () => void | Promise<void>) {
       document.removeEventListener('touchend', handleTouchEnd);
       document.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [pullDistance]);
+    // Listeners attach once and read live values via refs — no need to
+    // re-subscribe on every pullDistance change (which also detached/
+    // reattached mid-gesture, the root of the stale-read bug).
+  }, []);
 
   return { pulling, pullDistance, threshold };
 }

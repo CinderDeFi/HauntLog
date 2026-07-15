@@ -1,0 +1,7 @@
+# HauntLog — allow crawling of public marketing + shareable pages.
+# The authed app lives under /app and just redirects to sign-in for
+# crawlers, so it's disallowed to keep it out of search results.
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /auth

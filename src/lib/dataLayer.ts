@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { reportError } from './monitoring';
 import type {
   CaseRow,
   LogEntryRow,
@@ -865,6 +866,31 @@ export async function fetchActiveInvestigators(
     .limit(limit);
   if (error) throw error;
   return (data ?? []) as InvestigatorListing[];
+}
+
+/**
+ * Community public/anonymous case counts per venue, keyed by location_id
+ * (the catalog slug). Backs the Atlas "N cases" community count. Best-effort:
+ * on failure returns an empty map so the Atlas still renders (counts just
+ * show 0). Only catalog venues appear — user-created venues log with a NULL
+ * location_id, so they aren't represented and are treated as 0 in-app.
+ */
+export async function fetchVenuePublicCaseCounts(): Promise<Map<string, number>> {
+  const { data, error } = await supabase
+    .from('venue_public_case_counts')
+    .select('location_id, public_case_count');
+  if (error) {
+    reportError('fetchVenuePublicCaseCounts', error);
+    return new Map();
+  }
+  const counts = new Map<string, number>();
+  for (const row of (data ?? []) as Array<{
+    location_id: string | null;
+    public_case_count: number;
+  }>) {
+    if (row.location_id != null) counts.set(row.location_id, row.public_case_count);
+  }
+  return counts;
 }
 
 /**
@@ -3214,7 +3240,10 @@ export async function saveHuntDraft(input: {
       },
       { onConflict: 'owner_id' }
     );
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    reportError('saveHuntDraft', error);
+    return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
 
@@ -3228,7 +3257,7 @@ export async function fetchHuntDraft(
     .eq('owner_id', ownerId)
     .maybeSingle();
   if (error) {
-    console.warn('[fetchHuntDraft]', error.message);
+    reportError('fetchHuntDraft', error);
     return null;
   }
   return data as HuntDraftRow | null;

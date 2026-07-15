@@ -167,7 +167,7 @@ export default function Landing() {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
             {/* Feature 1 */}
-            <div className="bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 transition-all group">
+            <div className="hl-lift bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 group">
               <div className="flex items-center gap-x-3 md:gap-x-4 mb-4 md:mb-6">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-red-500/10 text-haunt-red rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl shrink-0">01</div>
                 <div className="min-w-0">
@@ -186,7 +186,7 @@ export default function Landing() {
             </div>
 
             {/* Feature 2 */}
-            <div className="bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 transition-all group">
+            <div className="hl-lift bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 group">
               <div className="flex items-center gap-x-3 md:gap-x-4 mb-4 md:mb-6">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-red-500/10 text-haunt-red rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl shrink-0">02</div>
                 <div className="min-w-0">
@@ -199,7 +199,7 @@ export default function Landing() {
             </div>
 
             {/* Feature 3 */}
-            <div className="bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 transition-all group">
+            <div className="hl-lift bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 group">
               <div className="flex items-center gap-x-3 md:gap-x-4 mb-4 md:mb-6">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-red-500/10 text-haunt-red rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl shrink-0">03</div>
                 <div className="min-w-0">
@@ -212,7 +212,7 @@ export default function Landing() {
             </div>
 
             {/* Feature 4 */}
-            <div className="bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 transition-all group">
+            <div className="hl-lift bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 group">
               <div className="flex items-center gap-x-3 md:gap-x-4 mb-4 md:mb-6">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-red-500/10 text-haunt-red rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl shrink-0">04</div>
                 <div className="min-w-0">
@@ -224,7 +224,7 @@ export default function Landing() {
             </div>
 
             {/* Feature 5 */}
-            <div className="bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 transition-all group">
+            <div className="hl-lift bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 group">
               <div className="flex items-center gap-x-3 md:gap-x-4 mb-4 md:mb-6">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-red-500/10 text-haunt-red rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl shrink-0">05</div>
                 <div className="min-w-0">
@@ -237,7 +237,7 @@ export default function Landing() {
             </div>
 
             {/* Feature 6 */}
-            <div className="bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 transition-all group">
+            <div className="hl-lift bg-black border border-white/10 rounded-2xl md:rounded-3xl p-6 md:p-8 hover:border-haunt-red/50 group">
               <div className="flex items-center gap-x-3 md:gap-x-4 mb-4 md:mb-6">
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-red-500/10 text-haunt-red rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl shrink-0">06</div>
                 <div className="min-w-0">
@@ -267,7 +267,7 @@ export default function Landing() {
             </div>
 
             {/* Sample case card — clickable too */}
-            <Link to="/case/sample" className="flex-1 w-full bg-zinc-900 border border-white/10 rounded-2xl md:rounded-3xl p-5 md:p-8 max-w-lg hover:border-haunt-red/40 hover:bg-zinc-900/80 transition-all group">
+            <Link to="/case/sample" className="hl-lift flex-1 w-full bg-zinc-900 border border-white/10 rounded-2xl md:rounded-3xl p-5 md:p-8 max-w-lg hover:border-haunt-red/40 hover:bg-zinc-900/80 group">
               <div className="flex justify-between items-center mb-4 md:mb-6 gap-2">
                 <div className="font-mono text-[10px] md:text-sm bg-white/10 px-3 md:px-4 py-1 rounded-xl md:rounded-2xl">CASE FILE · SEALED</div>
                 <div className="text-[10px] md:text-xs text-white/40 shrink-0">#SAMPLE</div>

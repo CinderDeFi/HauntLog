@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import * as dataLayer from '../lib/dataLayer';
 import * as imageProcess from '../lib/imageProcess';
 import { supabase } from '../lib/supabase';
+import { reportError } from '../lib/monitoring';
 
 // Helper: get the current authenticated user's id from the session.
 // Cached briefly to avoid hammering getSession() in tight loops.
@@ -252,6 +253,11 @@ type HauntState = {
   venues: Venue[];
   checkIns: CheckIn[];
   activeHunt: ActiveHunt | null;
+  // Transient (non-persisted) load flags. True only while the first server
+  // fetch is in flight, so pages can show skeletons instead of flashing a
+  // false "empty" state during hydration.
+  casesLoading: boolean;
+  venuesLoading: boolean;
 
   startHunt: (init: {
     /** Supabase user id of the investigator. Required so the hunt
@@ -451,6 +457,8 @@ export const useHauntStore = create<HauntState>()(
       cases: [],
       checkIns: [],
       activeHunt: null,
+      casesLoading: false,
+      venuesLoading: false,
 
       // -------------- Hunts --------------
       startHunt: (init) => {
@@ -786,6 +794,11 @@ export const useHauntStore = create<HauntState>()(
       },
 
       clearActiveHuntIfStale: (currentUserId) => {
+        // Auth state just changed (sign-in/out fires this). Drop the 5s auth-id
+        // cache so a check-in written right after a user switch can't be stamped
+        // with the previous user's id from a stale cache entry.
+        cachedAuthId = null;
+        cachedAuthAt = 0;
         const h = get().activeHunt;
         if (!h) return;
         // If the hunt has no userId stamp (legacy data from before
@@ -875,12 +888,15 @@ export const useHauntStore = create<HauntState>()(
       },
 
       loadMyCases: async (userId) => {
+        set({ casesLoading: true });
         try {
           const cases = await dataLayer.fetchMyVaultCases(userId);
           set({ cases });
         } catch (e) {
           // Network error or RLS issue — keep the existing local cache.
-          console.warn('[loadMyCases] failed:', e);
+          reportError('loadMyCases', e);
+        } finally {
+          set({ casesLoading: false });
         }
       },
 
@@ -888,21 +904,30 @@ export const useHauntStore = create<HauntState>()(
         try {
           const remote = await dataLayer.fetchActiveCheckIns();
           // Merge logic: keep the user's own un-synced local check-ins
-          // (those with id starting "ci_"), plus the remote rows. Remote
-          // wins on id collision.
+          // (id starting "ci_"), PLUS the user's own live check-in for the
+          // current hunt even after it synced to a server UUID — a private
+          // check-in is excluded from the remote fetch (fetchActiveCheckIns
+          // filters out visibility='private'), so without this it would be
+          // dropped and the user's own in-progress private hunt would vanish
+          // from the map. Remote wins on id collision.
           set((s) => {
             const remoteIds = new Set(remote.map((r) => r.id));
-            const localUnsynced = s.checkIns.filter(
-              (ci) => ci.id.startsWith('ci_') && !remoteIds.has(ci.id)
+            const activeHuntId = s.activeHunt?.id;
+            const localToKeep = s.checkIns.filter(
+              (ci) =>
+                !remoteIds.has(ci.id) &&
+                (ci.id.startsWith('ci_') ||
+                  (ci.active && ci.huntId === activeHuntId))
             );
-            return { checkIns: [...remote, ...localUnsynced] };
+            return { checkIns: [...remote, ...localToKeep] };
           });
         } catch (e) {
-          console.warn('[loadActiveCheckIns] failed:', e);
+          reportError('loadActiveCheckIns', e);
         }
       },
 
       hydrateAtlasVenues: async () => {
+        set({ venuesLoading: true });
         try {
           const remote = await dataLayer.fetchAtlasVenues();
           // Merge with a strict rule: a local entry survives only if
@@ -919,7 +944,9 @@ export const useHauntStore = create<HauntState>()(
             return { venues: [...remote, ...localOnly] };
           });
         } catch (e) {
-          console.warn('[hydrateAtlasVenues] failed:', e);
+          reportError('hydrateAtlasVenues', e);
+        } finally {
+          set({ venuesLoading: false });
         }
       },
 
@@ -934,9 +961,20 @@ export const useHauntStore = create<HauntState>()(
         let migrated = 0;
         let skipped = 0;
         let failed = 0;
+        const failedCases: CaseFile[] = [];
 
         for (const c of local) {
           if (serverIds.has(c.id)) {
+            skipped++;
+            continue;
+          }
+          // Never migrate a case owned by a DIFFERENT user. After a sign-out
+          // on a shared browser, the previous user's cases can still be in
+          // this store (localStorage-persisted); without this guard they'd be
+          // re-uploaded — and thereby copied — into the new user's account.
+          // Cases with no ownerId are legacy local-only drafts and stay
+          // eligible for the current user to claim.
+          if (c.ownerId && c.ownerId !== userId) {
             skipped++;
             continue;
           }
@@ -968,12 +1006,25 @@ export const useHauntStore = create<HauntState>()(
           } else {
             console.warn('[sync] failed to migrate case', c.id, res.error);
             failed++;
+            failedCases.push(c);
           }
         }
 
         // After sync, refresh from server.
         if (migrated > 0) {
           await get().loadMyCases(userId);
+          // loadMyCases replaces `cases` with server truth, which excludes
+          // any local-only case that FAILED to migrate. Re-merge those so a
+          // partial failure doesn't silently drop unsynced local cases.
+          if (failedCases.length > 0) {
+            set((s) => {
+              const have = new Set(s.cases.map((c) => c.id));
+              const missing = failedCases.filter((c) => !have.has(c.id));
+              return missing.length > 0
+                ? { cases: [...missing, ...s.cases] }
+                : {};
+            });
+          }
         }
         return { migrated, skipped, failed };
       },
@@ -1107,7 +1158,19 @@ export const useHauntStore = create<HauntState>()(
         return { added, updated, skipped };
       },
     }),
-    { name: 'hauntlog-storage' }
+    {
+      name: 'hauntlog-storage',
+      // Persist only durable data. Explicitly excludes the transient
+      // *Loading flags so a reload mid-fetch can't rehydrate a stuck
+      // `true` and freeze a page on its skeleton.
+      partialize: (s) => ({
+        user: s.user,
+        cases: s.cases,
+        venues: s.venues,
+        checkIns: s.checkIns,
+        activeHunt: s.activeHunt,
+      }),
+    }
   )
 );
 

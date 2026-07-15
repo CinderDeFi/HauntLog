@@ -246,7 +246,7 @@ export default function Comments({ caseId, caseOwnerId, visibility }: Props) {
                     {renderCommentBody(c.body)}
                   </p>
 
-                  {(canModerate || c.author?.id === user?.id) && (
+                  {(canModerate || (!!user && c.author?.id === user.id)) && (
                     <div className="flex items-center gap-2 mt-2">
                       {canModerate && (
                         <button

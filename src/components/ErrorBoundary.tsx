@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { reportRenderError } from '../lib/monitoring';
 
 type Props = { children: ReactNode };
 type State = { error: Error | null };
@@ -14,6 +15,8 @@ export default class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     // Surface the real stack to the console for debugging.
     console.error('[ErrorBoundary]', error, info.componentStack);
+    // And report to Sentry (no-op unless configured) with the component stack.
+    reportRenderError(error, info.componentStack ?? '');
   }
 
   reset = () => {

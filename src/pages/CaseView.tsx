@@ -173,11 +173,14 @@ export default function CaseView() {
   const { user: authUser } = useAuth();
   const toast = useToast();
 
-  // For locally-cached cases (i.e. yours), the owner_id is the current
-  // signed-in user. For remotely-fetched ones, we grabbed it above.
+  // Owner id comes from the case itself, not "it's cached so I own it":
+  // fetchMyVaultCases also returns team cases owned by a *teammate*, which
+  // are locally cached too. Hardcoding the current user there falsely
+  // granted owner-only controls (edit/star/add-exhibit) on cases you don't
+  // own. Fall back to remoteOwnerId for remotely-fetched cases.
   const caseFile = localCase ?? remoteCase;
   const caseOwnerProfileId = localCase
-    ? authUser?.id ?? null
+    ? localCase.ownerId ?? null
     : remoteOwnerId;
 
   const [visMenuOpen, setVisMenuOpen] = useState(false);
