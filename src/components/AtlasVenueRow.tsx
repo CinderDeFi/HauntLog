@@ -5,7 +5,12 @@ import { venueProfileUrl } from '../store/useHauntStore';
 
 type Props = {
   venue: Venue;
+  /** Community public/anonymous case count at this venue (all investigators),
+   * from the venue_public_case_counts view. The venue-popularity signal. */
   caseCount: number;
+  /** Cases the CURRENT viewer has logged here — shown as a small secondary
+   * "N by you" so they can spot their own contribution. */
+  myCaseCount: number;
   isSelected: boolean;
   onSelect: () => void;
 };
@@ -19,6 +24,7 @@ function pinColorClass(v: Venue): string {
 export default function AtlasVenueRow({
   venue,
   caseCount,
+  myCaseCount,
   isSelected,
   onSelect,
 }: Props) {
@@ -29,7 +35,7 @@ export default function AtlasVenueRow({
   return (
     <div
       onClick={onSelect}
-      className={`group rounded-2xl border p-3 cursor-pointer transition-all ${
+      className={`group rounded-2xl border p-3 cursor-pointer transition-all active:scale-[0.99] ${
         isSelected
           ? 'bg-haunt-red/10 border-haunt-red'
           : 'bg-zinc-900 border-white/10 hover:border-white/30'
@@ -66,9 +72,17 @@ export default function AtlasVenueRow({
             {caseCount > 0 && (
               <>
                 <span className="text-white/20">·</span>
-                <span>
+                <span title="Public cases logged here by the community">
                   <span className="text-white">{caseCount}</span>{' '}
                   {caseCount === 1 ? 'case' : 'cases'}
+                </span>
+              </>
+            )}
+            {myCaseCount > 0 && (
+              <>
+                <span className="text-white/20">·</span>
+                <span className="text-haunt-red/80" title="Cases you've logged here">
+                  {myCaseCount} by you
                 </span>
               </>
             )}

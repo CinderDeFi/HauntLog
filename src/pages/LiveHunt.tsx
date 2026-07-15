@@ -214,7 +214,7 @@ export default function LiveHunt() {
             {reversedLogs.map((log) => (
               <div
                 key={log.id}
-                className="flex items-start gap-2 md:gap-4 bg-black/40 border border-white/5 rounded-2xl px-3 md:px-4 py-3 group"
+                className="flex items-start gap-2 md:gap-4 bg-black/40 border border-white/5 rounded-2xl px-3 md:px-4 py-3 group transition-colors hover:border-white/10 motion-safe:animate-fadeInUp"
               >
                 <div className="font-mono text-[10px] md:text-xs text-white/40 w-14 md:w-20 pt-1 shrink-0 tabular-nums">
                   {formatTimeOfDay(log.timestamp)}
@@ -233,18 +233,18 @@ export default function LiveHunt() {
                 <div className="flex items-center gap-0.5 md:gap-1 opacity-60 group-hover:opacity-100 transition-opacity shrink-0">
                   <button
                     onClick={() => updateLog(log.id, { starred: !log.starred })}
-                    className="w-7 h-7 md:w-8 md:h-8 rounded-lg hover:bg-white/10 flex items-center justify-center"
+                    className="w-7 h-7 md:w-8 md:h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition-transform active:scale-90"
                     title={log.starred ? 'Unstar' : 'Star'}
                   >
                     <Star
                       className={`w-3.5 h-3.5 md:w-4 md:h-4 ${
-                        log.starred ? 'text-yellow-400 fill-yellow-400' : 'text-white/40'
+                        log.starred ? 'text-yellow-400 fill-yellow-400 hl-star-pop' : 'text-white/40'
                       }`}
                     />
                   </button>
                   <button
                     onClick={() => deleteLog(log.id)}
-                    className="w-7 h-7 md:w-8 md:h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-haunt-red"
+                    className="w-7 h-7 md:w-8 md:h-8 rounded-lg hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-haunt-red transition-all active:scale-90"
                     title="Delete"
                   >
                     <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />

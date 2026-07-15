@@ -21,6 +21,7 @@ import { fetchMyPendingInvites } from '../lib/teamActions';
 import { fetchVenuesIManage } from '../lib/dataLayer';
 import SearchDropdown from './SearchDropdown';
 import NotificationBell from './NotificationBell';
+import { prefetchHandlers } from '../lib/routePrefetch';
 
 const TABS = [
   { to: '/app/live', label: 'LIVE', icon: Zap, match: '/live' },
@@ -131,10 +132,11 @@ export default function Navbar() {
                   <Link
                     key={t.to}
                     to={t.to}
-                    className={`relative flex items-center gap-x-2 px-3 lg:px-4 py-2 rounded-xl transition-colors ${
+                    {...prefetchHandlers(t.to)}
+                    className={`relative flex items-center gap-x-2 px-3 lg:px-4 py-2 rounded-xl transition-all active:scale-95 ${
                       isActive(t.match)
                         ? 'bg-white/10 text-white'
-                        : 'text-white/70 hover:text-white'
+                        : 'text-white/70 hover:text-white hover:bg-white/5'
                     }`}
                   >
                     <span className="relative inline-flex">
@@ -162,7 +164,7 @@ export default function Navbar() {
                 onClick={() => setSearchOpen((s) => !s)}
                 aria-label="Search investigators and teams"
                 title="Search (⌘K)"
-                className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors text-white/80 hover:text-white"
+                className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center hover:bg-white/10 rounded-xl transition-all active:scale-90 text-white/80 hover:text-white"
               >
                 <Search className="w-4 h-4 md:w-[18px] md:h-[18px]" />
               </button>
@@ -177,7 +179,7 @@ export default function Navbar() {
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen((s) => !s)}
-                className="flex items-center gap-x-2 md:gap-x-3 px-2 py-1.5 hover:bg-white/10 rounded-xl transition-colors"
+                className="flex items-center gap-x-2 md:gap-x-3 px-2 py-1.5 hover:bg-white/10 rounded-xl transition-all active:scale-[0.97]"
               >
               <div className="hidden md:block text-right">
                 <div className="text-white text-sm font-medium leading-tight">
@@ -226,6 +228,7 @@ export default function Navbar() {
                     setMenuOpen(false);
                     navigate('/app/profile');
                   }}
+                  {...prefetchHandlers('/app/profile')}
                   className="w-full px-4 py-3 text-left text-sm flex items-center gap-x-3 hover:bg-white/5"
                 >
                   <UserIcon className="w-4 h-4 text-white/60" />
@@ -236,6 +239,7 @@ export default function Navbar() {
                     setMenuOpen(false);
                     navigate('/app/account');
                   }}
+                  {...prefetchHandlers('/app/account')}
                   className="w-full px-4 py-3 text-left text-sm flex items-center gap-x-3 hover:bg-white/5"
                 >
                   <Settings className="w-4 h-4 text-white/60" />
@@ -246,6 +250,7 @@ export default function Navbar() {
                     setMenuOpen(false);
                     navigate('/app/teams');
                   }}
+                  {...prefetchHandlers('/app/teams')}
                   className="w-full px-4 py-3 text-left text-sm flex items-center gap-x-3 hover:bg-white/5 border-t border-white/10"
                 >
                   <Users className="w-4 h-4 text-white/60" />
@@ -262,6 +267,7 @@ export default function Navbar() {
                       setMenuOpen(false);
                       navigate('/app/my-venues');
                     }}
+                    {...prefetchHandlers('/app/my-venues')}
                     className="w-full px-4 py-3 text-left text-sm flex items-center gap-x-3 hover:bg-white/5 border-t border-white/10"
                   >
                     <Building2 className="w-4 h-4 text-amber-400" />
@@ -277,6 +283,7 @@ export default function Navbar() {
                       setMenuOpen(false);
                       navigate('/app/admin');
                     }}
+                    {...prefetchHandlers('/app/admin')}
                     className="w-full px-4 py-3 text-left text-sm flex items-center gap-x-3 hover:bg-white/5 text-haunt-red border-t border-white/10"
                   >
                     <ShieldAlert className="w-4 h-4" />
@@ -340,7 +347,8 @@ export default function Navbar() {
             <Link
               key={t.to}
               to={t.to}
-              className={`flex flex-col items-center justify-center py-2 gap-0.5 transition-colors ${
+              {...prefetchHandlers(t.to)}
+              className={`flex flex-col items-center justify-center py-2 gap-0.5 transition-all active:scale-90 active:bg-white/5 ${
                 on ? 'text-haunt-red' : 'text-white/60'
               }`}
             >

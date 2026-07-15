@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import type { Venue } from '../store/useHauntStore';
 import { venueProfileUrl } from '../store/useHauntStore';
 

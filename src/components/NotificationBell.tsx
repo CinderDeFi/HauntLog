@@ -10,6 +10,7 @@ import {
   type NotificationWithActor,
 } from '../lib/dataLayer';
 import { useAuth } from '../lib/useAuth';
+import { prefetchRoute } from '../lib/routePrefetch';
 import { Bell, BellOff, Loader2, CheckCheck } from 'lucide-react';
 
 /**
@@ -115,8 +116,10 @@ export default function NotificationBell() {
     <div ref={wrapRef} className="relative">
       <button
         onClick={() => setOpen((s) => !s)}
+        onMouseEnter={() => prefetchRoute('/app/notifications')}
+        onFocus={() => prefetchRoute('/app/notifications')}
         aria-label={unread > 0 ? `${unread} unread notifications` : 'Notifications'}
-        className="relative w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+        className="relative w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/10 text-white/70 hover:text-white transition-all active:scale-90"
       >
         <Bell className="w-5 h-5" />
         {unread > 0 && (

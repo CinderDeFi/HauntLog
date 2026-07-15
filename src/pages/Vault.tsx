@@ -7,6 +7,7 @@ import {
   EQUIPMENT_CATALOG,
 } from '../store/useHauntStore';
 import { equipmentChipColors } from '../lib/equipmentColors';
+import { VaultSkeleton } from '../components/ui/Skeleton';
 import { useAuth } from '../lib/useAuth';
 import { fetchMyDeletedCases, restoreCase } from '../lib/dataLayer';
 import {
@@ -61,6 +62,10 @@ export default function Vault() {
   const navigate = useNavigate();
   const { user: authUser } = useAuth();
   const cases = useHauntStore((s) => s.cases);
+  const casesLoading = useHauntStore((s) => s.casesLoading);
+  // Show skeletons only during the first hydration, when we have nothing to
+  // show yet. A background refresh with cases already cached keeps the grid.
+  const showSkeleton = casesLoading && cases.length === 0;
   const [filter, setFilter] = useState<Filter>('all');
   const [scope, setScope] = useState<Scope>('all');
   // Step 23: equipment filter — match cases that used a specific device.
@@ -175,7 +180,9 @@ export default function Vault() {
         <div>
           <h1 className="text-4xl md:text-5xl font-medium tracking-tighter">YOUR VAULT</h1>
           <p className="text-white/60 mt-1">
-            {cases.length} sealed {cases.length === 1 ? 'case' : 'cases'}
+            {showSkeleton
+              ? 'Loading your vault…'
+              : `${cases.length} sealed ${cases.length === 1 ? 'case' : 'cases'}`}
           </p>
         </div>
         <button
@@ -331,7 +338,9 @@ export default function Vault() {
         </div>
       )}
 
-      {cases.length === 0 && (
+      {showSkeleton && <VaultSkeleton />}
+
+      {!showSkeleton && cases.length === 0 && (
         <div>
           {/* Primary empty state: 3-step explainer */}
           <div className="bg-zinc-900 border border-white/10 rounded-3xl p-8 md:p-12 text-center mb-6">
@@ -408,7 +417,7 @@ export default function Vault() {
             <Link
               key={c.id}
               to={`/case/${c.id}`}
-              className="block bg-zinc-900 border border-white/10 rounded-3xl p-6 hover:border-haunt-red/50 transition-all group"
+              className="hl-lift block bg-zinc-900 border border-white/10 rounded-3xl p-6 hover:border-haunt-red/50 group"
             >
               <div className="flex justify-between items-start mb-3">
                 <div className="font-mono text-xs text-white/40 tracking-widest">#{c.id}</div>

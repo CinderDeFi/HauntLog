@@ -8,6 +8,8 @@ import {
 import AtlasSheet, { SNAPS, type SnapIndex } from '../components/AtlasSheet';
 import AtlasFilters, { type SourceFilter } from '../components/AtlasFilters';
 import AtlasVenueRow from '../components/AtlasVenueRow';
+import { AtlasListSkeleton } from '../components/ui/Skeleton';
+import { fetchVenuePublicCaseCounts } from '../lib/dataLayer';
 import {
   Clock,
   EyeOff,
@@ -54,6 +56,7 @@ function useIsDesktop(): boolean {
 export default function Atlas() {
   const navigate = useNavigate();
   const venues = useHauntStore((s) => s.venues);
+  const venuesLoading = useHauntStore((s) => s.venuesLoading);
   const checkIns = useHauntStore((s) => s.checkIns);
   const cases = useHauntStore((s) => s.cases);
   const isDesktop = useIsDesktop();
@@ -62,6 +65,22 @@ export default function Atlas() {
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
+  }, []);
+
+  // Real community case counts per catalog venue (public/anonymous cases from
+  // ALL investigators), fetched once on mount. Best-effort — an empty map just
+  // means rows show no community count. Venues are slow-moving, so no polling.
+  const [venueCaseCounts, setVenueCaseCounts] = useState<Map<string, number>>(
+    new Map()
+  );
+  useEffect(() => {
+    let cancelled = false;
+    fetchVenuePublicCaseCounts().then((m) => {
+      if (!cancelled) setVenueCaseCounts(m);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Refresh active check-ins from Supabase on mount + every 60s while open.
@@ -120,7 +139,11 @@ export default function Atlas() {
     [checkIns, now]
   );
 
-  const publicCaseCountByVenue = useMemo(() => {
+  // Cases the CURRENT viewer has logged at each venue. NOTE: the store's
+  // `cases` only holds the viewer's own + team cases, so this is a personal
+  // count, not a community total — the row labels it "by you" accordingly.
+  // (A true public per-venue count would need a DB aggregate view.)
+  const myCaseCountByVenue = useMemo(() => {
     const map = new Map<string, number>();
     cases.forEach((c) => {
       if (c.visibility === 'private') return;
@@ -208,11 +231,16 @@ export default function Atlas() {
     </button>
   );
 
+  // First-load skeletons: only while hydrating with nothing cached yet.
+  const showVenueSkeleton = venuesLoading && venues.length === 0;
+
   const VenueList = (
     <div className="space-y-2 p-3 md:p-4">
       <div className="text-[10px] font-mono tracking-widest text-white/40 flex items-center justify-between">
         <span>
-          {filteredVenues.length} {filteredVenues.length === 1 ? 'LOCATION' : 'LOCATIONS'}
+          {showVenueSkeleton
+            ? 'LOADING LOCATIONS…'
+            : `${filteredVenues.length} ${filteredVenues.length === 1 ? 'LOCATION' : 'LOCATIONS'}`}
         </span>
         {selectedVenueId && (
           <button
@@ -223,7 +251,9 @@ export default function Atlas() {
           </button>
         )}
       </div>
-      {filteredVenues.length === 0 ? (
+      {showVenueSkeleton ? (
+        <AtlasListSkeleton />
+      ) : filteredVenues.length === 0 ? (
         <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 text-center">
           {venues.length === 0 ? (
             <>
@@ -274,7 +304,8 @@ export default function Atlas() {
           <AtlasVenueRow
             key={v.id}
             venue={v}
-            caseCount={publicCaseCountByVenue.get(v.id) ?? 0}
+            caseCount={venueCaseCounts.get(v.id) ?? 0}
+            myCaseCount={myCaseCountByVenue.get(v.id) ?? 0}
             isSelected={selectedVenueId === v.id}
             onSelect={() => onVenueSelect(v.id)}
           />

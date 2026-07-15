@@ -7,8 +7,12 @@ export function parseCsv(text: string): string[][] {
   let inQuotes = false;
   let i = 0;
 
-  // Normalize line endings.
-  const s = text.replace(/\r\n?/g, '\n');
+  // Strip a leading UTF-8 BOM (Excel/Sheets prepend one on export) then
+  // normalize line endings. Without the BOM strip the first header becomes
+  // U+FEFF + "id", so every record keys off the wrong column and imports
+  // as null. charCodeAt avoids embedding an invisible BOM in this source.
+  const withoutBom = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const s = withoutBom.replace(/\r\n?/g, '\n');
 
   while (i < s.length) {
     const c = s[i];

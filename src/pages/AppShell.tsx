@@ -1,35 +1,42 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import LiveHunt from './LiveHunt';
-import Feed from './Feed';
-import Discover from './Discover';
-import Vault from './Vault';
-import Atlas from './Atlas';
-import HuntStart from './HuntStart';
-import SealCase from './SealCase';
-import VenueView from './VenueView';
-import SupabaseTest from './SupabaseTest';
-import Profile from './Profile';
-import Account from './Account';
-import Admin from './Admin';
-import Teams from './Teams';
-import TeamNew from './TeamNew';
-import TeamManage from './TeamManage';
-import VenueEditor from './VenueEditor';
-import VenueZoneEditor from './VenueZoneEditor';
-import MyVenues from './MyVenues';
-import VenueSubmit from './VenueSubmit';
-import Notifications from './Notifications';
-import InvestigationView from './InvestigationView';
-import NotFound from './NotFound';
 import InvestigationsBanner from '../components/InvestigationsBanner';
 import HuntDraftRecoveryBanner from '../components/HuntDraftRecoveryBanner';
+import OnboardingChecklist from '../components/OnboardingChecklist';
+import OnboardingWelcome from '../components/OnboardingWelcome';
+import PageLoader from '../components/ui/PageLoader';
 import { useAuth } from '../lib/useAuth';
 import { useHauntStore } from '../store/useHauntStore';
 import { useHuntDraftSync } from '../lib/useHuntDraftSync';
 import { SUPABASE_CONFIGURED } from '../lib/supabase';
 import { Loader2 } from 'lucide-react';
+
+// Every authed-app page is code-split. LiveHunt is the default landing route
+// inside the shell, so it eagerly hints its chunk (see prefetch below) to keep
+// the common path snappy; the rest stream in on navigation.
+const LiveHunt = lazy(() => import('./LiveHunt'));
+const Feed = lazy(() => import('./Feed'));
+const Discover = lazy(() => import('./Discover'));
+const Vault = lazy(() => import('./Vault'));
+const Atlas = lazy(() => import('./Atlas'));
+const HuntStart = lazy(() => import('./HuntStart'));
+const SealCase = lazy(() => import('./SealCase'));
+const VenueView = lazy(() => import('./VenueView'));
+const SupabaseTest = lazy(() => import('./SupabaseTest'));
+const Profile = lazy(() => import('./Profile'));
+const Account = lazy(() => import('./Account'));
+const Admin = lazy(() => import('./Admin'));
+const Teams = lazy(() => import('./Teams'));
+const TeamNew = lazy(() => import('./TeamNew'));
+const TeamManage = lazy(() => import('./TeamManage'));
+const VenueEditor = lazy(() => import('./VenueEditor'));
+const VenueZoneEditor = lazy(() => import('./VenueZoneEditor'));
+const MyVenues = lazy(() => import('./MyVenues'));
+const VenueSubmit = lazy(() => import('./VenueSubmit'));
+const Notifications = lazy(() => import('./Notifications'));
+const InvestigationView = lazy(() => import('./InvestigationView'));
+const NotFound = lazy(() => import('./NotFound'));
 
 export default function AppShell() {
   const location = useLocation();
@@ -80,7 +87,12 @@ export default function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [status, profile]);
+    // Depend on the id, not the profile object: setFieldMode/refreshProfile
+    // replace `profile` with a new identity, which would otherwise re-run
+    // this full server sync on every Field Mode toggle. This effect only
+    // cares about which user is signed in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, profile?.id]);
 
   // If Supabase isn't configured at all, skip the auth gate so the rest of
   // the app still works on localStorage in development. (Useful escape hatch.)
@@ -108,6 +120,7 @@ export default function AppShell() {
       <Navbar />
       <InvestigationsBanner />
       <HuntDraftRecoveryBanner />
+      <OnboardingChecklist />
       <div
         className={
           fullBleed
@@ -116,6 +129,23 @@ export default function AppShell() {
         }
         style={fullBleed ? { overscrollBehavior: 'none' } : undefined}
       >
+        {fullBleed ? (
+          <Suspense fallback={<PageLoader />}>{appRoutes}</Suspense>
+        ) : (
+          // key by pathname so the fade replays on every navigation. The
+          // full-bleed Atlas is excluded — a translate on the map container
+          // would fight Leaflet's own sizing on entry.
+          <div key={location.pathname} className="motion-safe:animate-fadeInUp">
+            <Suspense fallback={<PageLoader />}>{appRoutes}</Suspense>
+          </div>
+        )}
+      </div>
+      <OnboardingWelcome />
+    </div>
+  );
+}
+
+const appRoutes = (
         <Routes>
           <Route path="/" element={<Navigate to="/app/live" replace />} />
           <Route path="/live" element={<LiveHunt />} />
@@ -141,7 +171,4 @@ export default function AppShell() {
           <Route path="/_supabase" element={<SupabaseTest />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </div>
-    </div>
-  );
-}
+);

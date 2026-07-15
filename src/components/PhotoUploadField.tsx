@@ -33,12 +33,18 @@ export default function PhotoUploadField({ photos, onChange }: Props) {
   // across Android/iOS browsers — easier to render two inputs and pick.
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Keep a ref to the latest photos so the unmount cleanup revokes the URLs
+  // that actually exist at unmount. An empty-deps cleanup would close over
+  // the first render's `photos` (always [] since LogSheet resets on open),
+  // leaking every thumbnail object URL created afterward.
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+
   // Revoke thumbnail URLs on unmount to avoid leaking memory.
   useEffect(() => {
     return () => {
-      photos.forEach((p) => URL.revokeObjectURL(p.thumbnailUrl));
+      photosRef.current.forEach((p) => URL.revokeObjectURL(p.thumbnailUrl));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addFiles = (files: FileList | File[]) => {

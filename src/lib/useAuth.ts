@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase, SUPABASE_CONFIGURED } from './supabase';
 import type { ProfileRow } from './database.types';
 import { useHauntStore } from '../store/useHauntStore';
+import { setMonitoringUser } from './monitoring';
 
 export type AuthStatus = 'loading' | 'signed_out' | 'signed_in';
 
@@ -59,11 +60,18 @@ async function applySession(session: Session | null) {
   if (!session) {
     setCached({ status: 'signed_out', user: null, session: null, profile: null });
     applyFieldMode(null);
-    // Step 27: any in-progress hunt belongs to the previous user.
-    // Drop it from local store so it can't leak to the next user
-    // who signs in on this browser.
+    setMonitoringUser(null);
+    // Any in-progress hunt belongs to the previous user. Drop it from
+    // local store so it can't leak to the next user on this browser.
+    // Also clear the per-user cases + check-ins cache: every cached case
+    // is already on the server (seal fails closed), so loadMyCases will
+    // refetch on the next sign-in — meanwhile the previous user's cases
+    // (including private ones) must not sit in this browser or render to
+    // whoever signs in next.
     try {
-      useHauntStore.getState().clearActiveHuntIfStale(null);
+      const store = useHauntStore.getState();
+      store.clearActiveHuntIfStale(null);
+      useHauntStore.setState({ cases: [], checkIns: [] });
     } catch {
       /* store may not be ready in some test contexts */
     }
@@ -77,6 +85,11 @@ async function applySession(session: Session | null) {
     profile,
   });
   applyFieldMode(profile);
+  setMonitoringUser({
+    id: session.user.id,
+    email: session.user.email,
+    handle: profile?.handle,
+  });
   // Step 27: defensive — if localStorage has a stale activeHunt from a
   // previous account, discard it.
   try {

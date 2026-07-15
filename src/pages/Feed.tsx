@@ -7,9 +7,9 @@ import {
 } from '../lib/dataLayer';
 import { useAuth } from '../lib/useAuth';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
+import { FeedSkeleton } from '../components/ui/Skeleton';
 import {
   Activity,
-  Loader2,
   RefreshCw,
   AlertCircle,
   MapPin,
@@ -168,11 +168,7 @@ export default function Feed() {
         </div>
       )}
 
-      {loading && (
-        <div className="text-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin mx-auto text-white/40" />
-        </div>
-      )}
+      {loading && <FeedSkeleton />}
 
       {!loading && filter === 'following' && visible.length === 0 && (
         <div className="bg-zinc-900 border border-white/10 rounded-3xl p-12 text-center">
@@ -321,7 +317,7 @@ function FeedCard({ c, now }: { c: FeedCase; now: number }) {
   return (
     <Link
       to={`/case/${c.id}`}
-      className="block bg-zinc-900 border border-white/10 rounded-3xl p-5 hover:border-haunt-red/50 transition-all"
+      className="hl-lift block bg-zinc-900 border border-white/10 rounded-3xl p-5 hover:border-haunt-red/50"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         {authorBlock}
